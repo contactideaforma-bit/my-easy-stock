@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { IconHome, IconBox, IconCash, IconUsers, IconDots } from '@/components/Icons';
 
 const tabs: { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; big?: boolean }[] = [
-  { href: '/', label: 'Accueil', icon: IconHome },
+  { href: '/app', label: 'Accueil', icon: IconHome },
   { href: '/produits', label: 'Produits', icon: IconBox },
   { href: '/caisse', label: 'Caisse', icon: IconCash, big: true },
   { href: '/vendeurs', label: 'Vendeurs', icon: IconUsers },
@@ -45,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <nav className="bottom-nav no-print fixed bottom-3 left-1/2 -translate-x-1/2 z-40 flex items-end gap-1 rounded-3xl px-3 py-2 w-[calc(100%-1.5rem)] max-w-lg">
         {tabs.map((t) => {
-          const active = t.href === '/' ? pathname === '/' : pathname.startsWith(t.href);
+          const active = t.href === '/app' ? pathname === '/app' : pathname.startsWith(t.href);
           const Icon = t.icon;
           if (t.big)
             return (
@@ -55,8 +55,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     active ? 'ring-2 ring-crystal-300/60' : ''
                   }`}
                   style={{
-                    background: 'linear-gradient(135deg,#3b9af6,#1d65d8)',
-                    boxShadow: '0 8px 24px rgba(59,154,246,.5)',
+                    background: 'linear-gradient(135deg,#ff8a55,#f05e23)',
+                    boxShadow: '0 8px 24px rgba(240,94,35,.45)',
                   }}
                 >
                   <Icon className="w-7 h-7" />

@@ -6,6 +6,18 @@ const config: Config = {
     extend: {
       colors: {
         ink: '#0d2b4e',
+        coral: {
+          50: '#fff4ee',
+          100: '#ffe6d9',
+          200: '#ffc9ad',
+          300: '#ffa578',
+          400: '#ff8a55',
+          500: '#ff7a45',
+          600: '#f05e23',
+          700: '#c74815',
+          800: '#9e3a14',
+          900: '#7f3214'
+        },
         crystal: {
           50: '#eff8ff',
           100: '#dbeefe',

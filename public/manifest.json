@@ -2,7 +2,7 @@
   "name": "My Easy Stock",
   "short_name": "EasyStock",
   "description": "Gestion de stock textile & chaussures",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "background_color": "#e8f4fd",
   "theme_color": "#e8f4fd",

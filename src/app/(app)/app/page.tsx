@@ -123,7 +123,7 @@ export default function Dashboard() {
 
       {/* Actions rapides */}
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/caisse" className="btn-primary py-4">
+        <Link href="/caisse" className="btn-accent py-4">
           <IconCash className="w-5 h-5" /> Vendre
         </Link>
         <Link href="/produits/nouveau" className="btn-glass py-4">

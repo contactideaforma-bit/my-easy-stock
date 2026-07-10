@@ -309,7 +309,7 @@ export default function CaissePage() {
       {/* Barre total */}
       {cart.length > 0 && !paying && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg z-30">
-          <button className="btn-primary w-full py-4 text-lg justify-between px-6" onClick={() => setPaying(true)}>
+          <button className="btn-accent w-full py-4 text-lg justify-between px-6" onClick={() => setPaying(true)}>
             <span>Encaisser</span>
             <span>{fmt(total)}</span>
           </button>

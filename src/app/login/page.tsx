@@ -21,7 +21,7 @@ export default function LoginPage() {
     if (mode === 'login') {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) setError('Email ou mot de passe incorrect.');
-      else router.replace('/');
+      else router.replace('/app');
     } else {
       const { error } = await sb.auth.signUp({
         email,
@@ -31,7 +31,7 @@ export default function LoginPage() {
       if (error) setError(error.message);
       else {
         const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
-        if (!e2) router.replace('/');
+        if (!e2) router.replace('/app');
         else setError('Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.');
       }
     }
