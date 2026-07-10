@@ -25,24 +25,32 @@ export default function VendeursPage() {
   const load = useCallback(async () => {
     const sb = supabase();
     const monthStart = startOfMonth().toISOString();
-    const [{ data: vendors }, { data: stock }, { data: sales }, { data: payments }] = await Promise.all([
+    const [{ data: vendors }, { data: stock }, { data: sales }, { data: payments }, { data: allocs }] = await Promise.all([
       sb.from('vendors').select('*').eq('active', true).order('name'),
       sb.from('vendor_stock').select('vendor_id,qty'),
       sb.from('sales').select('vendor_id,total,created_at').not('vendor_id', 'is', null).is('canceled_at', null),
       sb.from('vendor_payments').select('vendor_id,amount'),
+      sb.from('allocations').select('vendor_id,due_amount').eq('direction', 'sortie').neq('due_type', 'ventes').not('due_amount', 'is', null),
     ]);
 
     const pieces: Record<string, number> = {};
     (stock || []).forEach((s: any) => (pieces[s.vendor_id] = (pieces[s.vendor_id] || 0) + s.qty));
     const ca: Record<string, number> = {};
     const nb: Record<string, number> = {};
-    const du: Record<string, number> = {};
+    const ventesTotal: Record<string, number> = {};
+    const forfaits: Record<string, number> = {};
     (sales || []).forEach((s: any) => {
-      du[s.vendor_id] = (du[s.vendor_id] || 0) + Number(s.total);
+      ventesTotal[s.vendor_id] = (ventesTotal[s.vendor_id] || 0) + Number(s.total);
       if (s.created_at >= monthStart) {
         ca[s.vendor_id] = (ca[s.vendor_id] || 0) + Number(s.total);
         nb[s.vendor_id] = (nb[s.vendor_id] || 0) + 1;
       }
+    });
+    (allocs || []).forEach((a: any) => (forfaits[a.vendor_id] = (forfaits[a.vendor_id] || 0) + Number(a.due_amount)));
+    // Mode forfait dès qu'un lot a un reversement convenu, sinon au réel des ventes
+    const du: Record<string, number> = {};
+    ((vendors as any) || []).forEach((v: Vendor) => {
+      du[v.id] = forfaits[v.id] != null ? forfaits[v.id] : ventesTotal[v.id] || 0;
     });
     (payments || []).forEach((p: any) => (du[p.vendor_id] = (du[p.vendor_id] || 0) - Number(p.amount)));
 

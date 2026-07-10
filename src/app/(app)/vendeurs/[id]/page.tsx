@@ -33,6 +33,10 @@ export default function VendeurDetailPage() {
   const [allocating, setAllocating] = useState(false);
   const [lotPicker, setLotPicker] = useState(false);
   const [lines, setLines] = useState<LotLine[]>([]);
+  const [dueType, setDueType] = useState<'ventes' | 'montant' | 'pourcentage'>('ventes');
+  const [dueRate, setDueRate] = useState('');
+  const [dueAmount, setDueAmount] = useState('');
+  const [forfaits, setForfaits] = useState<{ sum: number; count: number }>({ sum: 0, count: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -66,6 +70,19 @@ export default function VendeurDetailPage() {
     setStock((st as any) || []);
     setSales((sl as any) || []);
     setPayments((pay as any) || []);
+
+    // Forfaits de reversement convenus sur les lots
+    const { data: allocs } = await sb
+      .from('allocations')
+      .select('due_type,due_amount')
+      .eq('vendor_id', id)
+      .eq('direction', 'sortie')
+      .neq('due_type', 'ventes');
+    const forfaitLines = (allocs || []).filter((a: any) => a.due_amount != null);
+    setForfaits({
+      sum: forfaitLines.reduce((s: number, a: any) => s + Number(a.due_amount), 0),
+      count: forfaitLines.length,
+    });
   }, [id]);
 
   useEffect(() => {
@@ -155,14 +172,33 @@ export default function VendeurDetailPage() {
     load();
   }
 
+  const lotValue = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const lotDue =
+    dueType === 'montant'
+      ? Math.max(0, Number(dueAmount) || 0)
+      : dueType === 'pourcentage'
+        ? Math.round(lotValue * (Math.max(0, Number(dueRate) || 0)) ) / 100
+        : null;
+
   async function giveLot() {
     if (lines.length === 0) return;
+    if (dueType === 'montant' && !Number(dueAmount)) {
+      setError('Indiquez le montant à reverser pour ce lot.');
+      return;
+    }
+    if (dueType === 'pourcentage' && !Number(dueRate)) {
+      setError('Indiquez le pourcentage à reverser.');
+      return;
+    }
     setBusy(true);
     setError('');
     const { error: err } = await supabase().rpc('allocate_to_vendor', {
       p_vendor_id: id,
       p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, agreed_price: l.price })),
       p_direction: 'sortie',
+      p_due_type: dueType,
+      p_due_rate: dueType === 'pourcentage' ? Number(dueRate) : null,
+      p_due_amount: lotDue,
     });
     setBusy(false);
     if (err) {
@@ -170,6 +206,9 @@ export default function VendeurDetailPage() {
       return;
     }
     setLines([]);
+    setDueType('ventes');
+    setDueRate('');
+    setDueAmount('');
     setAllocating(false);
     load();
   }
@@ -222,7 +261,10 @@ export default function VendeurDetailPage() {
   const monthSales = sales.filter((s) => s.created_at >= monthStart);
   const caMois = monthSales.reduce((s, x) => s + Number(x.total), 0);
   const caTotal = sales.reduce((s, x) => s + Number(x.total), 0);
-  const solde = Math.max(0, caTotal - payments.reduce((s, p) => s + Number(p.amount), 0));
+  const paye = payments.reduce((s, p) => s + Number(p.amount), 0);
+  // Mode forfait dès qu'un lot a un reversement convenu ; sinon au réel des ventes
+  const modeForfait = forfaits.count > 0;
+  const solde = Math.max(0, (modeForfait ? forfaits.sum : caTotal) - paye);
 
   return (
     <div className="space-y-4 pb-8">
@@ -259,7 +301,11 @@ export default function VendeurDetailPage() {
           </span>
         </div>
         <p className="text-ink/45 text-xs mb-3">
-          Total vendu {fmt(caTotal)} − reversé {fmt(caTotal - solde)}
+          {modeForfait ? (
+            <>Forfaits convenus sur {forfaits.count} lot{forfaits.count > 1 ? 's' : ''} : {fmt(forfaits.sum)} − reversé {fmt(paye)} · ventes enregistrées {fmt(caTotal)} (stats)</>
+          ) : (
+            <>Au réel : total vendu {fmt(caTotal)} − reversé {fmt(paye)}</>
+          )}
         </p>
         {solde > 0 && (
           <div className="flex gap-2">
@@ -347,9 +393,71 @@ export default function VendeurDetailPage() {
             </div>
           ))}
           {lines.length > 0 && (
-            <p className="text-ink/45 text-xs">
-              Le prix convenu sera proposé automatiquement lors des ventes de ce vendeur.
-            </p>
+            <>
+              <p className="text-ink/45 text-xs">
+                Le prix convenu sera proposé automatiquement lors des ventes de ce vendeur.
+              </p>
+
+              {/* Reversement convenu */}
+              <div className="pt-1">
+                <p className="section-title !text-xs mb-2">Reversement convenu</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    ['ventes', 'Au réel'],
+                    ['montant', 'Montant fixe'],
+                    ['pourcentage', '% du lot'],
+                  ] as const).map(([t, label]) => (
+                    <button
+                      key={t}
+                      className={dueType === t ? 'btn-primary !py-2 text-xs' : 'btn-glass !py-2 text-xs'}
+                      onClick={() => setDueType(t)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {dueType === 'ventes' && (
+                  <p className="text-ink/45 text-xs mt-2">
+                    Le dû suivra les ventes que vous enregistrerez pour ce vendeur.
+                  </p>
+                )}
+                {dueType === 'montant' && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      className="input !py-2 flex-1 text-center"
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="Montant dû pour ce lot"
+                      value={dueAmount}
+                      onChange={(e) => setDueAmount(e.target.value)}
+                    />
+                    <span className="text-ink/40 text-sm">€</span>
+                  </div>
+                )}
+                {dueType === 'pourcentage' && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      className="input !py-2 w-24 text-center"
+                      type="number"
+                      step="1"
+                      inputMode="decimal"
+                      placeholder="%"
+                      value={dueRate}
+                      onChange={(e) => setDueRate(e.target.value)}
+                    />
+                    <span className="text-ink/40 text-sm">%</span>
+                    {[50, 60, 70].map((p) => (
+                      <button key={p} className="chip active:scale-95" onClick={() => setDueRate(String(p))}>{p} %</button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-ink text-sm font-medium mt-2">
+                  Valeur du lot : {fmt(lotValue)}
+                  {lotDue != null && <span className="text-coral-600"> · à reverser : {fmt(lotDue)}</span>}
+                </p>
+              </div>
+            </>
           )}
           {error && <p className="text-rose-600 text-sm">{error}</p>}
           <div className="grid grid-cols-2 gap-2">

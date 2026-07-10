@@ -9,7 +9,7 @@ import { IconHome, IconBox, IconCash, IconUsers, IconDots } from '@/components/I
 const tabs: { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; big?: boolean }[] = [
   { href: '/app', label: 'Accueil', icon: IconHome },
   { href: '/produits', label: 'Produits', icon: IconBox },
-  { href: '/caisse', label: 'Caisse', icon: IconCash, big: true },
+  { href: '/caisse', label: 'Vendre', icon: IconCash, big: true },
   { href: '/vendeurs', label: 'Vendeurs', icon: IconUsers },
   { href: '/plus', label: 'Plus', icon: IconDots },
 ];

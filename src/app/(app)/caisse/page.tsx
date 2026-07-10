@@ -270,7 +270,10 @@ export default function CaissePage() {
   return (
     <div className="space-y-4 pb-40">
       <header className="flex items-center justify-between gap-3 pt-2">
-        <h1 className="text-2xl font-bold text-ink">Caisse</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-ink">Vendre</h1>
+          <p className="text-ink/50 text-xs">Scannez ou choisissez les articles, puis encaissez</p>
+        </div>
         <select
           className="input !w-auto !py-2 !px-3 text-sm font-medium"
           value={vendorId}
