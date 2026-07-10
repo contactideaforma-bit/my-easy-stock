@@ -25,6 +25,7 @@ export default function StatsPage() {
       .from('sales')
       .select('created_at,total,sale_items(product_name,qty,unit_price,purchase_price)')
       .gte('created_at', daysAgo(period).toISOString())
+      .is('canceled_at', null)
       .order('created_at')
       .then(({ data }) => {
         setRows(((data as any) || []).map((s: any) => ({ ...s, items: s.sale_items || [] })));

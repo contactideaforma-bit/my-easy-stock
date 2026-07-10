@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard, IconTag, IconTrash } from '@/components/Icons';
+import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard, IconTag, IconTrash, IconCash } from '@/components/Icons';
 import type { Category, Profile } from '@/lib/types';
 
 export default function PlusPage() {
@@ -76,6 +76,7 @@ export default function PlusPage() {
   }
 
   const items = [
+    { href: '/ventes', label: 'Journal des ventes', desc: 'Historique complet, annulation et remise en stock', icon: IconCash },
     { href: '/inventaire', label: 'Inventaire', desc: 'Comptage par scan, écarts, correction du stock', icon: IconClipboard },
     { href: '/clients', label: 'Clients & crédit', desc: 'Fiches clients, ardoises, règlements', icon: IconUsers },
     { href: '/fournisseurs', label: 'Fournisseurs & achats', desc: 'Commandes, réceptions de stock', icon: IconTruck },

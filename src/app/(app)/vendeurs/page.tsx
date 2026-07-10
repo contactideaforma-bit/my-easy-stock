@@ -7,7 +7,7 @@ import { fmt, startOfDay } from '@/lib/utils';
 import { IconPlus, IconUsers } from '@/components/Icons';
 import type { Vendor } from '@/lib/types';
 
-type VendorRow = Vendor & { pieces: number; caMois: number; nbVentes: number };
+type VendorRow = Vendor & { pieces: number; caMois: number; nbVentes: number; du: number };
 
 function startOfMonth() {
   const d = startOfDay();
@@ -24,20 +24,27 @@ export default function VendeursPage() {
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const [{ data: vendors }, { data: stock }, { data: sales }] = await Promise.all([
+    const monthStart = startOfMonth().toISOString();
+    const [{ data: vendors }, { data: stock }, { data: sales }, { data: payments }] = await Promise.all([
       sb.from('vendors').select('*').eq('active', true).order('name'),
       sb.from('vendor_stock').select('vendor_id,qty'),
-      sb.from('sales').select('vendor_id,total').not('vendor_id', 'is', null).gte('created_at', startOfMonth().toISOString()),
+      sb.from('sales').select('vendor_id,total,created_at').not('vendor_id', 'is', null).is('canceled_at', null),
+      sb.from('vendor_payments').select('vendor_id,amount'),
     ]);
 
     const pieces: Record<string, number> = {};
     (stock || []).forEach((s: any) => (pieces[s.vendor_id] = (pieces[s.vendor_id] || 0) + s.qty));
     const ca: Record<string, number> = {};
     const nb: Record<string, number> = {};
+    const du: Record<string, number> = {};
     (sales || []).forEach((s: any) => {
-      ca[s.vendor_id] = (ca[s.vendor_id] || 0) + Number(s.total);
-      nb[s.vendor_id] = (nb[s.vendor_id] || 0) + 1;
+      du[s.vendor_id] = (du[s.vendor_id] || 0) + Number(s.total);
+      if (s.created_at >= monthStart) {
+        ca[s.vendor_id] = (ca[s.vendor_id] || 0) + Number(s.total);
+        nb[s.vendor_id] = (nb[s.vendor_id] || 0) + 1;
+      }
     });
+    (payments || []).forEach((p: any) => (du[p.vendor_id] = (du[p.vendor_id] || 0) - Number(p.amount)));
 
     setRows(
       ((vendors as any) || []).map((v: Vendor) => ({
@@ -45,6 +52,7 @@ export default function VendeursPage() {
         pieces: pieces[v.id] || 0,
         caMois: ca[v.id] || 0,
         nbVentes: nb[v.id] || 0,
+        du: Math.max(0, du[v.id] || 0),
       }))
     );
     setLoading(false);
@@ -105,7 +113,10 @@ export default function VendeursPage() {
                   {v.pieces} pièce{v.pieces > 1 ? 's' : ''} en stock · {v.nbVentes} vente{v.nbVentes > 1 ? 's' : ''} ce mois
                 </p>
               </div>
-              <span className="font-bold text-crystal-700 shrink-0">{fmt(v.caMois)}</span>
+              <div className="text-right shrink-0">
+                <p className="font-bold text-crystal-700">{fmt(v.caMois)}</p>
+                {v.du > 0 && <span className="chip chip-warn !text-[10px]">doit {fmt(v.du)}</span>}
+              </div>
             </Link>
           ))}
         </div>

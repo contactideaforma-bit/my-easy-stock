@@ -22,7 +22,7 @@ export default function ClientsPage() {
     const sb = supabase();
     const [{ data: customers }, { data: sales }, { data: payments }] = await Promise.all([
       sb.from('customers').select('*').order('name'),
-      sb.from('sales').select('customer_id,total,paid_amount').not('customer_id', 'is', null),
+      sb.from('sales').select('customer_id,total,paid_amount').not('customer_id', 'is', null).is('canceled_at', null),
       sb.from('customer_payments').select('customer_id,amount'),
     ]);
     const dueMap: Record<string, number> = {};
@@ -44,7 +44,7 @@ export default function ClientsPage() {
     setPayAmount('');
     const sb = supabase();
     const [{ data: sales }, { data: pays }] = await Promise.all([
-      sb.from('sales').select('number,total,payment_method,created_at').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
+      sb.from('sales').select('number,total,payment_method,created_at').eq('customer_id', c.id).is('canceled_at', null).order('created_at', { ascending: false }).limit(10),
       sb.from('customer_payments').select('amount,created_at').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
     ]);
     const h = [

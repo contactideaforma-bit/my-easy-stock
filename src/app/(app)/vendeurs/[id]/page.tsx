@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, variantLabel, startOfDay } from '@/lib/utils';
 import { IconBack, IconPlus, IconSearch, IconTrash } from '@/components/Icons';
-import type { Vendor, VendorStockLine, Variant } from '@/lib/types';
+import type { Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; sale_price: number } };
 type LotLine = { variant: VariantHit; qty: number };
@@ -24,6 +24,9 @@ export default function VendeurDetailPage() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [stock, setStock] = useState<VendorStockLine[]>([]);
   const [sales, setSales] = useState<VendorSale[]>([]);
+  const [payments, setPayments] = useState<VendorPayment[]>([]);
+  const [payAmount, setPayAmount] = useState('');
+  const [payBusy, setPayBusy] = useState(false);
 
   // lot à donner
   const [allocating, setAllocating] = useState(false);
@@ -35,7 +38,7 @@ export default function VendeurDetailPage() {
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const [{ data: v }, { data: st }, { data: sl }] = await Promise.all([
+    const [{ data: v }, { data: st }, { data: sl }, { data: pay }] = await Promise.all([
       sb.from('vendors').select('*').eq('id', id).single(),
       sb
         .from('vendor_stock')
@@ -46,12 +49,14 @@ export default function VendeurDetailPage() {
         .from('sales')
         .select('id,number,total,created_at')
         .eq('vendor_id', id)
-        .gte('created_at', startOfMonth().toISOString())
+        .is('canceled_at', null)
         .order('created_at', { ascending: false }),
+      sb.from('vendor_payments').select('*').eq('vendor_id', id).order('created_at', { ascending: false }),
     ]);
     setVendor(v as any);
     setStock((st as any) || []);
     setSales((sl as any) || []);
+    setPayments((pay as any) || []);
   }, [id]);
 
   useEffect(() => {
@@ -117,6 +122,20 @@ export default function VendeurDetailPage() {
     load();
   }
 
+  async function recordPayment() {
+    const amount = Number(payAmount);
+    if (!amount || amount <= 0) return;
+    setPayBusy(true);
+    const { error: err } = await supabase().from('vendor_payments').insert({ vendor_id: id, amount });
+    setPayBusy(false);
+    if (err) {
+      alert(err.message);
+      return;
+    }
+    setPayAmount('');
+    load();
+  }
+
   async function deactivate() {
     const pieces = stock.reduce((s, l) => s + l.qty, 0);
     if (pieces > 0) {
@@ -133,7 +152,11 @@ export default function VendeurDetailPage() {
 
   const pieces = stock.reduce((s, l) => s + l.qty, 0);
   const valeur = stock.reduce((s, l) => s + l.qty * Number(l.product_variants?.products?.sale_price || 0), 0);
-  const caMois = sales.reduce((s, x) => s + Number(x.total), 0);
+  const monthStart = startOfMonth().toISOString();
+  const monthSales = sales.filter((s) => s.created_at >= monthStart);
+  const caMois = monthSales.reduce((s, x) => s + Number(x.total), 0);
+  const caTotal = sales.reduce((s, x) => s + Number(x.total), 0);
+  const solde = Math.max(0, caTotal - payments.reduce((s, p) => s + Number(p.amount), 0));
 
   return (
     <div className="space-y-4 pb-8">
@@ -153,13 +176,51 @@ export default function VendeurDetailPage() {
         </div>
         <div className="glass p-3">
           <p className="text-ink/55 text-[11px]">Ventes</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{sales.length}</p>
+          <p className="text-lg font-bold text-ink mt-0.5">{monthSales.length}</p>
         </div>
         <div className="glass p-3">
           <p className="text-ink/55 text-[11px]">En stock</p>
           <p className="text-lg font-bold text-ink mt-0.5">{pieces}</p>
         </div>
       </div>
+
+      {/* À reverser */}
+      <section className={solde > 0 ? 'glass-strong p-4' : 'glass p-4'}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="section-title">À reverser</h2>
+          <span className={`text-xl font-bold ${solde > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+            {solde > 0 ? fmt(solde) : 'À jour ✓'}
+          </span>
+        </div>
+        <p className="text-ink/45 text-xs mb-3">
+          Total vendu {fmt(caTotal)} − reversé {fmt(caTotal - solde)}
+        </p>
+        {solde > 0 && (
+          <div className="flex gap-2">
+            <input
+              className="input flex-1 !py-2"
+              type="number"
+              inputMode="decimal"
+              placeholder={`Montant reçu (max ${fmt(solde)})`}
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+            />
+            <button className="btn-primary !py-2 !px-4" onClick={recordPayment} disabled={payBusy}>
+              {payBusy ? '…' : 'Encaisser'}
+            </button>
+          </div>
+        )}
+        {payments.length > 0 && (
+          <ul className="mt-3 space-y-1">
+            {payments.slice(0, 5).map((p) => (
+              <li key={p.id} className="flex items-center justify-between text-xs text-ink/60">
+                <span>Reversement · {fmtDate(p.created_at)}</span>
+                <span className="text-emerald-600 font-medium">{fmt(Number(p.amount))}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Donner un lot */}
       {!allocating ? (
@@ -243,11 +304,11 @@ export default function VendeurDetailPage() {
       {/* Ventes du mois */}
       <section className="glass p-4">
         <h2 className="section-title mb-3">Ventes du mois</h2>
-        {sales.length === 0 ? (
+        {monthSales.length === 0 ? (
           <p className="text-ink/55 text-sm">Aucune vente ce mois-ci. Enregistrez-en une via la Caisse (stock : {vendor.name}).</p>
         ) : (
           <ul className="space-y-2">
-            {sales.map((s) => (
+            {monthSales.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">
                 <span className="text-ink">
                   #{s.number} <span className="text-ink/45">· {fmtDate(s.created_at)}</span>

@@ -38,9 +38,18 @@ export type Sale = {
   paid_amount: number;
   created_at: string;
   vendor_id?: string | null;
+  canceled_at?: string | null;
   customers?: { name: string } | null;
   vendors?: { name: string } | null;
   sale_items?: SaleItem[];
+};
+
+export type VendorPayment = {
+  id: string;
+  vendor_id: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
 };
 
 export type Vendor = {

@@ -38,11 +38,11 @@ export default function Dashboard() {
 
       const [{ data: monthSales }, { data: variants }, { data: vendorStock }, { data: vendors }, { data: recentSales }] =
         await Promise.all([
-          sb.from('sales').select('total,vendor_id,created_at').gte('created_at', monthStart),
+          sb.from('sales').select('total,vendor_id,created_at').gte('created_at', monthStart).is('canceled_at', null),
           sb.from('product_variants').select('id,size,color,stock,products!inner(name,low_stock_threshold,sale_price,archived)'),
           sb.from('vendor_stock').select('vendor_id,qty'),
           sb.from('vendors').select('id,name').eq('active', true),
-          sb.from('sales').select('id,number,total,payment_method,created_at,vendors(name)').order('created_at', { ascending: false }).limit(5),
+          sb.from('sales').select('id,number,total,payment_method,created_at,vendors(name)').is('canceled_at', null).order('created_at', { ascending: false }).limit(5),
         ]);
 
       const caMois = (monthSales || []).reduce((s, x) => s + Number(x.total), 0);
@@ -185,7 +185,10 @@ export default function Dashboard() {
 
       {/* Dernières ventes */}
       <section className="glass p-4">
-        <h2 className="section-title mb-3">Dernières ventes</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="section-title">Dernières ventes</h2>
+          <Link href="/ventes" className="text-crystal-700 text-xs font-medium">Tout voir →</Link>
+        </div>
         {recent.length === 0 ? (
           <p className="text-ink/55 text-sm">Aucune vente pour l&apos;instant.</p>
         ) : (
