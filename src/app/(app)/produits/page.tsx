@@ -5,16 +5,18 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt } from '@/lib/utils';
 import { IconPlus, IconSearch } from '@/components/Icons';
-import type { Product } from '@/lib/types';
+import type { Category, Product } from '@/lib/types';
 
 export default function ProduitsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [catId, setCatId] = useState('');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase()
-      .from('products')
+    const sb = supabase();
+    sb.from('products')
       .select('*, categories(name), product_variants(id,stock)')
       .eq('archived', false)
       .order('created_at', { ascending: false })
@@ -22,15 +24,17 @@ export default function ProduitsPage() {
         setProducts((data as any) || []);
         setLoading(false);
       });
+    sb.from('categories').select('*').order('name').then(({ data }) => setCategories(data || []));
   }, []);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return products;
-    return products.filter(
-      (p) => p.name.toLowerCase().includes(s) || p.brand?.toLowerCase().includes(s) || p.categories?.name.toLowerCase().includes(s)
-    );
-  }, [q, products]);
+    return products.filter((p) => {
+      if (catId && p.category_id !== catId) return false;
+      if (!s) return true;
+      return p.name.toLowerCase().includes(s) || p.brand?.toLowerCase().includes(s) || p.categories?.name.toLowerCase().includes(s);
+    });
+  }, [q, catId, products]);
 
   return (
     <div className="space-y-4">
@@ -45,6 +49,24 @@ export default function ProduitsPage() {
         <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
         <input className="input pl-11" placeholder="Rechercher un produit, une marque…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+
+      {/* Filtre par catégorie */}
+      {categories.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4">
+          <button className={`chip shrink-0 ${!catId ? '!bg-crystal-600 !text-white !border-crystal-600' : ''}`} onClick={() => setCatId('')}>
+            Tout
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              className={`chip shrink-0 ${catId === c.id ? '!bg-crystal-600 !text-white !border-crystal-600' : ''}`}
+              onClick={() => setCatId(catId === c.id ? '' : c.id)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="glass p-8 text-center text-ink/55 animate-pulse">Chargement…</div>

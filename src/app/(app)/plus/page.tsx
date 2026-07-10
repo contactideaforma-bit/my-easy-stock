@@ -4,15 +4,54 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard } from '@/components/Icons';
-import type { Profile } from '@/lib/types';
+import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard, IconTag, IconTrash } from '@/components/Icons';
+import type { Category, Profile } from '@/lib/types';
 
 export default function PlusPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [team, setTeam] = useState<Profile[]>([]);
+  const [categories, setCategories] = useState<(Category & { nb: number })[]>([]);
+  const [newCat, setNewCat] = useState('');
+  const [catError, setCatError] = useState('');
   const router = useRouter();
 
+  async function loadCategories() {
+    const sb = supabase();
+    const [{ data: cats }, { data: prods }] = await Promise.all([
+      sb.from('categories').select('*').order('name'),
+      sb.from('products').select('category_id').eq('archived', false),
+    ]);
+    const counts: Record<string, number> = {};
+    (prods || []).forEach((p: any) => {
+      if (p.category_id) counts[p.category_id] = (counts[p.category_id] || 0) + 1;
+    });
+    setCategories(((cats as any) || []).map((c: Category) => ({ ...c, nb: counts[c.id] || 0 })));
+  }
+
+  async function addCategory() {
+    const n = newCat.trim();
+    if (!n) return;
+    setCatError('');
+    const { error } = await supabase().from('categories').insert({ name: n });
+    if (error) {
+      setCatError(error.code === '23505' ? 'Cette catégorie existe déjà.' : error.message);
+      return;
+    }
+    setNewCat('');
+    loadCategories();
+  }
+
+  async function deleteCategory(c: Category & { nb: number }) {
+    const msg = c.nb > 0
+      ? `Supprimer « ${c.name} » ? Les ${c.nb} produit(s) associés resteront, sans catégorie.`
+      : `Supprimer « ${c.name} » ?`;
+    if (!confirm(msg)) return;
+    await supabase().from('categories').delete().eq('id', c.id);
+    loadCategories();
+  }
+
   useEffect(() => {
+    loadCategories();
     const sb = supabase();
     sb.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
@@ -70,6 +109,41 @@ export default function PlusPage() {
           </Link>
         ))}
       </div>
+
+      {/* Catégories d'articles */}
+      <section className="glass p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <IconTag className="w-5 h-5 text-crystal-600" />
+          <h2 className="section-title">Catégories d&apos;articles</h2>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <input
+            className="input flex-1 !py-2"
+            placeholder="Nouvelle catégorie…"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addCategory()}
+          />
+          <button className="btn-primary !py-2 !px-4" onClick={addCategory}>Ajouter</button>
+        </div>
+        {catError && <p className="text-rose-600 text-sm mb-2">{catError}</p>}
+        {categories.length === 0 ? (
+          <p className="text-ink/55 text-sm">Aucune catégorie.</p>
+        ) : (
+          <ul className="space-y-1">
+            {categories.map((c) => (
+              <li key={c.id} className="flex items-center justify-between py-1.5 text-sm">
+                <span className="text-ink">
+                  {c.name} <span className="text-ink/45">· {c.nb} produit{c.nb > 1 ? 's' : ''}</span>
+                </span>
+                <button className="text-rose-500/80 p-1" onClick={() => deleteCategory(c)} aria-label={`Supprimer ${c.name}`}>
+                  <IconTrash className="w-4 h-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {profile?.role === 'admin' && team.length > 0 && (
         <section className="glass p-4">

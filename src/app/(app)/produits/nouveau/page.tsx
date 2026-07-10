@@ -14,6 +14,8 @@ export default function NouveauProduitPage() {
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [salePrice, setSalePrice] = useState('');
   const [threshold, setThreshold] = useState('3');
@@ -132,13 +134,55 @@ export default function NouveauProduitPage() {
         <input className="input" placeholder="Nom du produit *" value={name} onChange={(e) => setName(e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
           <input className="input" placeholder="Marque" value={brand} onChange={(e) => setBrand(e.target.value)} />
-          <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <select
+            className="input"
+            value={showNewCat ? '__new__' : categoryId}
+            onChange={(e) => {
+              if (e.target.value === '__new__') setShowNewCat(true);
+              else {
+                setShowNewCat(false);
+                setCategoryId(e.target.value);
+              }
+            }}
+          >
             <option value="" className="text-black">Catégorie…</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id} className="text-black">{c.name}</option>
             ))}
+            <option value="__new__" className="text-black">➕ Nouvelle catégorie…</option>
           </select>
         </div>
+        {showNewCat && (
+          <div className="flex gap-2">
+            <input
+              className="input flex-1"
+              placeholder="Nom de la nouvelle catégorie"
+              value={newCatName}
+              onChange={(e) => setNewCatName(e.target.value)}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="btn-primary !px-4"
+              onClick={async () => {
+                const n = newCatName.trim();
+                if (!n) return;
+                const { data, error: err } = await supabase().from('categories').insert({ name: n }).select().single();
+                if (err) {
+                  setError(err.code === '23505' ? 'Cette catégorie existe déjà.' : err.message);
+                  return;
+                }
+                setCategories([...categories, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+                setCategoryId((data as any).id);
+                setNewCatName('');
+                setShowNewCat(false);
+                setError('');
+              }}
+            >
+              Créer
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="text-ink/55 text-xs pl-1">Prix achat</label>
