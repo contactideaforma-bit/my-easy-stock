@@ -198,6 +198,32 @@ body {
   animation: marquee 26s linear infinite;
 }
 
+/* Illustrations animées */
+@keyframes swing {
+  from { transform: rotate(-4deg); }
+  to { transform: rotate(4deg); }
+}
+.swing {
+  transform-origin: 50% 0%;
+  animation: swing 2.8s ease-in-out infinite alternate;
+}
+@keyframes scanline {
+  0%, 100% { transform: translateY(0); opacity: 0.9; }
+  50% { transform: translateY(52px); opacity: 1; }
+}
+.scanline { animation: scanline 2.2s ease-in-out infinite; }
+@keyframes coinUp {
+  from { transform: translateY(14px); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: translateY(-46px); opacity: 0; }
+}
+.coin-up { animation: coinUp 3s ease-in infinite; }
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.35); opacity: 0.4; }
+}
+.pulse-dot { animation: pulseDot 1.8s ease-in-out infinite; transform-origin: center; }
+
 /* Accordéon FAQ */
 details.faq summary { list-style: none; cursor: pointer; }
 details.faq summary::-webkit-details-marker { display: none; }

@@ -198,6 +198,103 @@ function MockFacture() {
 const MOCKS = { caisse: MockCaisse, vendeur: MockVendeur, facture: MockFacture };
 
 /* ------------------------------------------------------------------ */
+/* Illustrations animées originales (SVG)                              */
+/* ------------------------------------------------------------------ */
+
+/** Portant de vêtements — les cintres se balancent doucement */
+function RackIllustration({ className = '' }: { className?: string }) {
+  const shirts = [
+    { x: 40, c: '#93d2fd' },
+    { x: 110, c: '#ff8a55' },
+    { x: 180, c: '#60b8fa' },
+    { x: 250, c: '#bfe3fe' },
+  ];
+  return (
+    <svg viewBox="0 0 320 210" className={className} aria-hidden>
+      {/* barre du portant */}
+      <line x1="10" y1="34" x2="310" y2="34" stroke="#0d2b4e" strokeOpacity="0.25" strokeWidth="6" strokeLinecap="round" />
+      <line x1="24" y1="34" x2="24" y2="200" stroke="#0d2b4e" strokeOpacity="0.18" strokeWidth="6" strokeLinecap="round" />
+      <line x1="296" y1="34" x2="296" y2="200" stroke="#0d2b4e" strokeOpacity="0.18" strokeWidth="6" strokeLinecap="round" />
+      {shirts.map((s, i) => (
+        <g key={i} className="swing" style={{ animationDelay: `${-i * 0.7}s`, transformBox: 'fill-box' }}>
+          {/* cintre */}
+          <line x1={s.x + 22} y1="36" x2={s.x + 22} y2="52" stroke="#0d2b4e" strokeOpacity="0.35" strokeWidth="3" />
+          <path d={`M${s.x} 62 L${s.x + 22} 50 L${s.x + 44} 62`} fill="none" stroke="#0d2b4e" strokeOpacity="0.35" strokeWidth="3" strokeLinecap="round" />
+          {/* t-shirt */}
+          <path
+            d={`M${s.x - 4} 74 L${s.x + 10} 62 L${s.x + 34} 62 L${s.x + 48} 74 L${s.x + 40} 86 L${s.x + 36} 80 L${s.x + 36} 138 Q${s.x + 22} 144 ${s.x + 8} 138 L${s.x + 8} 80 L${s.x + 4} 86 Z`}
+            fill={s.c}
+            opacity="0.9"
+          />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+/** Boîte à chaussures scannée — rayon qui balaie le code-barres */
+function ScanIllustration({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 220 170" className={className} aria-hidden>
+      {/* boîte */}
+      <rect x="30" y="60" width="160" height="80" rx="10" fill="#ffffff" stroke="#0d2b4e" strokeOpacity="0.15" strokeWidth="2" />
+      <rect x="22" y="42" width="176" height="28" rx="8" fill="#dbeefe" stroke="#0d2b4e" strokeOpacity="0.12" strokeWidth="2" />
+      {/* code-barres */}
+      {[70, 78, 90, 96, 108, 118, 124, 136, 144].map((x, i) => (
+        <rect key={x} x={x} y="88" width={i % 3 === 0 ? 6 : 3} height="34" rx="1" fill="#0d2b4e" opacity="0.75" />
+      ))}
+      {/* rayon de scan */}
+      <rect x="52" y="80" width="116" height="4" rx="2" fill="#ff7a45" className="scanline" />
+      {/* bip validé */}
+      <g className="pulse-dot" style={{ transformBox: 'fill-box' }}>
+        <circle cx="186" cy="52" r="13" fill="#34d399" opacity="0.9" />
+        <path d="m180 52 4 4 8-8" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </svg>
+  );
+}
+
+/** Reversement — pièces qui montent vers le document */
+function CoinsIllustration({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 200 180" className={className} aria-hidden>
+      {/* document */}
+      <rect x="58" y="18" width="84" height="104" rx="10" fill="#ffffff" stroke="#0d2b4e" strokeOpacity="0.14" strokeWidth="2" />
+      <rect x="70" y="34" width="60" height="6" rx="3" fill="#93d2fd" />
+      <rect x="70" y="48" width="44" height="5" rx="2.5" fill="#0d2b4e" opacity="0.15" />
+      <rect x="70" y="60" width="52" height="5" rx="2.5" fill="#0d2b4e" opacity="0.15" />
+      <rect x="70" y="78" width="60" height="8" rx="4" fill="#ff8a55" opacity="0.85" />
+      {/* pièces */}
+      {[
+        { x: 46, d: 0 },
+        { x: 100, d: 1 },
+        { x: 152, d: 2 },
+      ].map((c) => (
+        <g key={c.x} className="coin-up" style={{ animationDelay: `${c.d}s`, transformBox: 'fill-box' }}>
+          <circle cx={c.x} cy="150" r="14" fill="#ffd28f" stroke="#c78a2b" strokeWidth="2" />
+          <text x={c.x} y="155" textAnchor="middle" fontSize="14" fontWeight="700" fill="#9a6b1e">€</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+/** Scène décorative qui met en valeur chaque mockup */
+function Stage({ mock, children }: { mock: 'caisse' | 'vendeur' | 'facture'; children: React.ReactNode }) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10"
+      style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.85), rgba(219,238,254,0.55))', border: '1px solid rgba(13,43,78,0.08)' }}
+    >
+      {mock === 'vendeur' && <RackIllustration className="absolute -right-8 -top-2 w-56 opacity-70" />}
+      {mock === 'caisse' && <ScanIllustration className="absolute -right-4 top-4 w-44 opacity-80" />}
+      {mock === 'facture' && <CoinsIllustration className="absolute -left-2 bottom-2 w-40 opacity-80" />}
+      <div className="relative">{children}</div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -281,7 +378,8 @@ export default function LandingPage() {
 
             {/* Mockup héro */}
             <div className="fade-up fade-up-3 relative hidden lg:block">
-              <div className="float-slow"><MockVendeur /></div>
+              <RackIllustration className="absolute -top-10 -left-4 w-72 opacity-60" />
+              <div className="float-slow relative"><MockVendeur /></div>
               <div className="absolute -left-6 top-8 glass-strong px-4 py-3 rounded-2xl float-slow" style={{ animationDelay: '-1.4s' }}>
                 <p className="text-[10px] text-ink/50">Ventes du mois</p>
                 <p className="font-extrabold text-crystal-700">4 280 €</p>
@@ -328,7 +426,9 @@ export default function LandingPage() {
                     <span aria-hidden>→</span>
                   </Link>
                 </div>
-                <div className="reveal lg:[direction:ltr]"><Mock /></div>
+                <div className="reveal lg:[direction:ltr]">
+                  <Stage mock={s.mock}><Mock /></Stage>
+                </div>
               </div>
             </section>
           );
