@@ -1,0 +1,12 @@
+{
+  "name": "My Easy Stock",
+  "short_name": "EasyStock",
+  "description": "Gestion de stock textile & chaussures",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1930",
+  "theme_color": "#0a1930",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
