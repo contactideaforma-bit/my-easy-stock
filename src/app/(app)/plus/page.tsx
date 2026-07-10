@@ -9,7 +9,6 @@ import type { Category, Profile } from '@/lib/types';
 
 export default function PlusPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [team, setTeam] = useState<Profile[]>([]);
   const [categories, setCategories] = useState<(Category & { nb: number })[]>([]);
   const [newCat, setNewCat] = useState('');
   const [catError, setCatError] = useState('');
@@ -57,18 +56,8 @@ export default function PlusPage() {
       if (!data.user) return;
       const { data: p } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
       setProfile(p as any);
-      if (p?.role === 'admin') {
-        const { data: t } = await sb.from('profiles').select('*').order('created_at');
-        setTeam((t as any) || []);
-      }
     });
   }, []);
-
-  async function setRole(id: string, role: 'admin' | 'vendeur') {
-    await supabase().from('profiles').update({ role }).eq('id', id);
-    const { data: t } = await supabase().from('profiles').select('*').order('created_at');
-    setTeam((t as any) || []);
-  }
 
   async function logout() {
     await supabase().auth.signOut();
@@ -147,34 +136,6 @@ export default function PlusPage() {
           </ul>
         )}
       </section>
-
-      {profile?.role === 'admin' && team.length > 0 && (
-        <section className="glass p-4">
-          <h2 className="section-title mb-3">Équipe</h2>
-          <ul className="space-y-2">
-            {team.map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-sm">
-                <span className="text-ink">{m.full_name || '—'}</span>
-                {m.id === profile.id ? (
-                  <span className="chip">vous · {m.role}</span>
-                ) : (
-                  <select
-                    className="input !w-auto !py-1 !px-3 text-xs"
-                    value={m.role}
-                    onChange={(e) => setRole(m.id, e.target.value as any)}
-                  >
-                    <option value="vendeur" className="text-black">vendeur</option>
-                    <option value="admin" className="text-black">admin</option>
-                  </select>
-                )}
-              </li>
-            ))}
-          </ul>
-          <p className="text-ink/45 text-xs mt-3">
-            Pour ajouter un vendeur : il crée son compte depuis l&apos;écran de connexion, puis vous gérez son rôle ici.
-          </p>
-        </section>
-      )}
 
       <button className="btn-glass w-full !text-rose-600" onClick={logout}>
         <IconLogout /> Se déconnecter

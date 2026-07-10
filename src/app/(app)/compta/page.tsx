@@ -61,7 +61,7 @@ export default function ComptaPage() {
         .gte('received_at', fromISO)
         .lte('received_at', toISO)
         .order('received_at'),
-      sb.from('company_settings').select('vat_rate').eq('id', 1).maybeSingle(),
+      sb.from('company_settings').select('vat_rate').maybeSingle(),
     ]);
     setSales((s as any) || []);
     setPurchases((p as any) || []);
@@ -175,7 +175,7 @@ export default function ComptaPage() {
   }
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="space-y-4 pb-16">
       <header className="flex items-center gap-3 pt-2">
         <Link href="/plus" className="btn-glass !p-2"><IconBack /></Link>
         <h1 className="text-xl font-bold text-ink flex-1">Comptabilité</h1>
@@ -185,11 +185,11 @@ export default function ComptaPage() {
       <section className="glass p-4 space-y-3">
         <h2 className="section-title">Période</h2>
         <div className="grid grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <label className="text-ink/55 text-xs pl-1">Du</label>
             <input className="input !py-2.5" type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-ink/55 text-xs pl-1">Au</label>
             <input className="input !py-2.5" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
           </div>

@@ -5,10 +5,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,24 +15,9 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const sb = supabase();
-    if (mode === 'login') {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) setError('Email ou mot de passe incorrect.');
-      else router.replace('/app');
-    } else {
-      const { error } = await sb.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name } },
-      });
-      if (error) setError(error.message);
-      else {
-        const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
-        if (!e2) router.replace('/app');
-        else setError('Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.');
-      }
-    }
+    const { error: err } = await supabase().auth.signInWithPassword({ email, password });
+    if (err) setError('Email ou mot de passe incorrect.');
+    else router.replace('/app');
     setLoading(false);
   }
 
@@ -53,23 +36,17 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={submit} className="space-y-3">
-          {mode === 'signup' && (
-            <input className="input" placeholder="Nom complet" value={name} onChange={(e) => setName(e.target.value)} required />
-          )}
           <input className="input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <input className="input" type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
           {error && <p className="text-rose-600 text-sm">{error}</p>}
           <button className="btn-primary w-full" disabled={loading}>
-            {loading ? '…' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
+            {loading ? '…' : 'Se connecter'}
           </button>
         </form>
 
-        <button
-          className="w-full text-center text-ink/60 text-sm mt-5"
-          onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-        >
-          {mode === 'login' ? 'Premier accès ? Créer un compte' : 'Déjà un compte ? Se connecter'}
-        </button>
+        <p className="text-center text-ink/45 text-xs mt-5">
+          Accès sur invitation — contactez votre administrateur.
+        </p>
       </div>
     </div>
   );

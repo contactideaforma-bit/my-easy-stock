@@ -46,7 +46,6 @@ export default function SocietePage() {
     supabase()
       .from('company_settings')
       .select('*')
-      .eq('id', 1)
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
@@ -78,10 +77,16 @@ export default function SocietePage() {
 
   async function save() {
     setSaving(true);
-    const { error } = await supabase()
+    const sb = supabase();
+    const { data: u } = await sb.auth.getUser();
+    if (!u.user) {
+      setSaving(false);
+      return;
+    }
+    const { error } = await sb
       .from('company_settings')
       .upsert({
-        id: 1,
+        owner_id: u.user.id,
         name: s.name.trim() || 'Ma Société',
         legal_form: s.legal_form.trim() || null,
         address: s.address.trim() || null,
@@ -97,7 +102,7 @@ export default function SocietePage() {
         invoice_color: s.invoice_color,
         invoice_theme: s.invoice_theme,
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'owner_id' });
     setSaving(false);
     if (error) alert(error.message);
     else setSaved(true);

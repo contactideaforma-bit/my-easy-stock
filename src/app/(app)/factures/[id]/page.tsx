@@ -36,7 +36,7 @@ export default function FacturePage() {
     const sb = supabase();
     const [{ data: s }, { data: c }, { data: cl }] = await Promise.all([
       sb.from('sales').select('*, customers(name, first_name, phone, email, address), vendors(name), sale_items(*)').eq('id', id).single(),
-      sb.from('company_settings').select('*').eq('id', 1).maybeSingle(),
+      sb.from('company_settings').select('*').maybeSingle(),
       sb.from('customers').select('*').order('name'),
     ]);
     setSale(s as any);
