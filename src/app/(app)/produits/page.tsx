@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt } from '@/lib/utils';
-import { IconPlus, IconSearch } from '@/components/Icons';
+import { IconPlus, IconSearch, IconBox } from '@/components/Icons';
 import type { Category, Product } from '@/lib/types';
 
 export default function ProduitsPage() {
@@ -46,7 +46,7 @@ export default function ProduitsPage() {
       </header>
 
       <div className="relative">
-        <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
+        <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
         <input className="input pl-11" placeholder="Rechercher un produit, une marque…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
@@ -86,7 +86,7 @@ export default function ProduitsPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-4xl opacity-40">👕</span>
+                    <IconBox className="w-10 h-10 text-ink/20" />
                   )}
                 </div>
                 <div className="p-3">

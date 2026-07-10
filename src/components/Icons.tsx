@@ -52,3 +52,18 @@ export const IconLogout = ({ className = 'w-5 h-5' }: P) => (
 export const IconCheck = ({ className = 'w-5 h-5' }: P) => (
   <svg viewBox="0 0 24 24" className={className} {...S}><path d="m4 12.5 5 5L20 6.5"/></svg>
 );
+export const IconCamera = ({ className = 'w-6 h-6' }: P) => (
+  <svg viewBox="0 0 24 24" className={className} {...S}><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>
+);
+export const IconShare = ({ className = 'w-5 h-5' }: P) => (
+  <svg viewBox="0 0 24 24" className={className} {...S}><path d="M12 15V4M8.5 7.5 12 4l3.5 3.5"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/></svg>
+);
+export const IconDownload = ({ className = 'w-5 h-5' }: P) => (
+  <svg viewBox="0 0 24 24" className={className} {...S}><path d="M12 4v11M8.5 11.5 12 15l3.5-3.5"/><path d="M5 19h14"/></svg>
+);
+export const IconBuilding = ({ className = 'w-6 h-6' }: P) => (
+  <svg viewBox="0 0 24 24" className={className} {...S}><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h3a1 1 0 0 1 1 1v11"/><path d="M2 21h20"/><path d="M8 7h2M8 11h2M8 15h2"/></svg>
+);
+export const IconInvoice = ({ className = 'w-6 h-6' }: P) => (
+  <svg viewBox="0 0 24 24" className={className} {...S}><path d="M6 3h9l4 4v14l-2-1.2L15 21l-2-1.2L11 21l-2-1.2L7 21l-1-.6z"/><path d="M15 3v4h4"/><path d="M9 10h6M9 14h4"/></svg>
+);

@@ -170,7 +170,7 @@ export default function FournisseursPage() {
               </select>
 
               <div className="relative">
-                <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
+                <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
                 <input className="input pl-11" placeholder="Ajouter un article…" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
               {hits.length > 0 && (

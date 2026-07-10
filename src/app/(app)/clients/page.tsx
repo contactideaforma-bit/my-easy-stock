@@ -121,7 +121,7 @@ export default function ClientsPage() {
             <div>
               <h3 className="text-lg font-bold text-ink">{selected.name}</h3>
               <p className={selected.due > 0 ? 'text-orange-700' : 'text-emerald-700'}>
-                {selected.due > 0 ? `Crédit en cours : ${fmt(selected.due)}` : 'Compte à jour ✓'}
+                {selected.due > 0 ? `Crédit en cours : ${fmt(selected.due)}` : 'Compte à jour'}
               </p>
             </div>
 

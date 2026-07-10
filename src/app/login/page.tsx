@@ -43,10 +43,11 @@ export default function LoginPage() {
       <div className="glass-strong w-full max-w-sm p-8">
         <div className="text-center mb-8">
           <div
-            className="mx-auto mb-4 w-16 h-16 rounded-3xl flex items-center justify-center text-3xl"
+            className="mx-auto mb-4 w-16 h-16 rounded-3xl flex items-center justify-center overflow-hidden"
             style={{ background: 'linear-gradient(135deg,#3b9af6,#1d65d8)', boxShadow: '0 8px 24px rgba(59,154,246,.5)' }}
           >
-            📦
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.svg" alt="My Easy Stock" className="w-12 h-12" />
           </div>
           <h1 className="text-2xl font-bold text-ink">My Easy Stock</h1>
           <p className="text-ink/60 text-sm mt-1">Votre stock, en toute clarté.</p>

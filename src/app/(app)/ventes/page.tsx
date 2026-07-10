@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { shareTicket } from '@/lib/ticket';
 import { fmt, fmtDate } from '@/lib/utils';
-import { IconBack } from '@/components/Icons';
+import { IconBack, IconShare, IconInvoice } from '@/components/Icons';
 import type { Sale } from '@/lib/types';
 
 export default function VentesPage() {
@@ -119,6 +119,9 @@ export default function VentesPage() {
               </p>
             ) : (
               <div className="space-y-2">
+                <Link href={`/factures/${selected.id}`} className="btn-primary w-full">
+                  <IconInvoice className="w-5 h-5" /> Facture
+                </Link>
                 <button
                   className="btn-glass w-full"
                   onClick={() =>
@@ -137,7 +140,7 @@ export default function VentesPage() {
                     })
                   }
                 >
-                  📤 Partager le ticket
+                  <IconShare /> Partager le ticket
                 </button>
                 <button className="btn-danger w-full" onClick={() => cancelSale(selected)} disabled={busy}>
                   {busy ? '…' : 'Annuler cette vente (remise en stock)'}

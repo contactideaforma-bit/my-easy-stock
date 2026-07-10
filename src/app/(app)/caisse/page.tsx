@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
 import { shareTicket, TicketData } from '@/lib/ticket';
-import { IconScan, IconSearch, IconTrash, IconCheck } from '@/components/Icons';
+import { IconScan, IconSearch, IconTrash, IconCheck, IconShare, IconInvoice } from '@/components/Icons';
 import type { CartLine, Customer, Product, Variant, Vendor } from '@/lib/types';
 
 type SearchHit = Product & { product_variants: Variant[] };
@@ -25,7 +26,7 @@ export default function CaissePage() {
   const [received, setReceived] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ total: number; change: number; ticket: TicketData | null } | null>(null);
+  const [done, setDone] = useState<{ total: number; change: number; ticket: TicketData | null; saleId: string | null } | null>(null);
 
   const total = useMemo(() => cart.reduce((s, l) => s + l.qty * l.unit_price, 0), [cart]);
   const change = Math.max(0, (Number(received) || 0) - total);
@@ -165,7 +166,7 @@ export default function CaissePage() {
         };
       }
     }
-    setDone({ total, change: method === 'especes' ? change : 0, ticket });
+    setDone({ total, change: method === 'especes' ? change : 0, ticket, saleId: (saleId as string) || null });
     setCart([]);
     setPaying(false);
     setReceived('');
@@ -193,12 +194,19 @@ export default function CaissePage() {
               Monnaie à rendre : <span className="font-bold text-ink">{fmt(done.change)}</span>
             </p>
           )}
-          {done.ticket && (
-            <button className="btn-glass w-full mt-6" onClick={() => shareTicket(done.ticket!)}>
-              📤 Partager le ticket
-            </button>
-          )}
-          <button className={`btn-primary w-full ${done.ticket ? 'mt-3' : 'mt-6'}`} onClick={() => setDone(null)}>
+          <div className="grid grid-cols-2 gap-2 mt-6">
+            {done.ticket && (
+              <button className="btn-glass" onClick={() => shareTicket(done.ticket!)}>
+                <IconShare /> Ticket
+              </button>
+            )}
+            {done.saleId && (
+              <Link href={`/factures/${done.saleId}`} className={done.ticket ? 'btn-glass' : 'btn-glass col-span-2'}>
+                <IconInvoice className="w-5 h-5" /> Facture
+              </Link>
+            )}
+          </div>
+          <button className="btn-primary w-full mt-3" onClick={() => setDone(null)}>
             Nouvelle vente
           </button>
         </div>
@@ -215,9 +223,9 @@ export default function CaissePage() {
           onChange={(e) => setVendorId(e.target.value)}
           aria-label="Source du stock"
         >
-          <option value="" className="text-black">🏬 Dépôt</option>
+          <option value="" className="text-black">Stock : Dépôt</option>
           {vendors.map((v) => (
-            <option key={v.id} value={v.id} className="text-black">👤 {v.name}</option>
+            <option key={v.id} value={v.id} className="text-black">Stock : {v.name}</option>
           ))}
         </select>
       </header>
@@ -231,7 +239,7 @@ export default function CaissePage() {
       {/* Recherche + scan */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
+          <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
           <input className="input pl-11" placeholder="Rechercher un article…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <button className="btn-primary !px-4" onClick={() => setScanning(true)} aria-label="Scanner">
@@ -324,7 +332,7 @@ export default function CaissePage() {
                   className={m === method ? 'btn-primary !py-3' : 'btn-glass !py-3'}
                   onClick={() => setMethod(m)}
                 >
-                  {m === 'especes' ? '💵 Espèces' : m === 'carte' ? '💳 Carte' : '📒 Crédit'}
+                  {m === 'especes' ? 'Espèces' : m === 'carte' ? 'Carte' : 'Crédit'}
                 </button>
               ))}
             </div>

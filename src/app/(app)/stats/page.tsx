@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, daysAgo, variantLabel } from '@/lib/utils';
 import { downloadCSV, csvNumber } from '@/lib/csv';
-import { IconBack } from '@/components/Icons';
+import { IconBack, IconDownload } from '@/components/Icons';
 
 type Row = {
   number: number;
@@ -243,10 +243,10 @@ export default function StatsPage() {
             <p className="text-ink/45 text-xs mb-3">Fichiers CSV ouvrables directement dans Excel — parfaits pour le comptable.</p>
             <div className="grid grid-cols-2 gap-2">
               <button className="btn-glass !py-3 text-sm" onClick={exportVentes} disabled={rows.length === 0}>
-                📄 Ventes ({PERIODS.find((p) => p.key === period)?.label})
+                <IconDownload /> Ventes ({PERIODS.find((p) => p.key === period)?.label})
               </button>
               <button className="btn-glass !py-3 text-sm" onClick={exportStock}>
-                📦 Stock valorisé
+                <IconDownload /> Stock valorisé
               </button>
             </div>
           </section>

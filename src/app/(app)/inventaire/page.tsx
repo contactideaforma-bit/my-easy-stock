@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
-import { IconScan, IconSearch } from '@/components/Icons';
+import { IconScan, IconSearch, IconClipboard } from '@/components/Icons';
 import type { InventoryCount, InventorySession, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; archived: boolean } };
@@ -124,7 +124,7 @@ export default function InventairePage() {
           <h1 className="text-2xl font-bold text-ink">Inventaire</h1>
         </header>
         <div className="glass-strong p-8 text-center space-y-4">
-          <p className="text-5xl">📋</p>
+          <IconClipboard className="w-14 h-14 mx-auto text-crystal-500" />
           <p className="text-crystal-800">
             Lancez une session d&apos;inventaire : scannez ou comptez vos articles, l&apos;app calcule les écarts et corrige le stock automatiquement.
           </p>
@@ -148,7 +148,7 @@ export default function InventairePage() {
 
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
+          <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
           <input className="input pl-11" placeholder="Rechercher un article…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <button className="btn-primary !px-4" onClick={() => setScanning(true)} aria-label="Scanner">

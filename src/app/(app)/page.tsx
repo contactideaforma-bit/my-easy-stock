@@ -29,7 +29,9 @@ export default function Dashboard() {
     sb.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       const { data: p } = await sb.from('profiles').select('full_name').eq('id', data.user.id).single();
-      setName(p?.full_name?.split(' ')[0] || '');
+      const raw = p?.full_name || '';
+      // Ignore les noms issus de l'email (ex : "contact.ideaforma")
+      setName(raw && !raw.includes('@') && !raw.includes('.') ? raw.split(' ')[0] : '');
     });
 
     (async () => {
@@ -91,7 +93,7 @@ export default function Dashboard() {
         <p className="text-ink/60 text-sm">
           {new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}
         </p>
-        <h1 className="text-2xl font-bold text-ink">Bonjour{name ? ` ${name}` : ''} 👋</h1>
+        <h1 className="text-2xl font-bold text-ink tracking-tight">Bonjour{name ? ` ${name}` : ''}</h1>
       </header>
 
       {/* KPIs du mois */}

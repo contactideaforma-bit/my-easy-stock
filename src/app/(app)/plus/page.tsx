@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard, IconTag, IconTrash, IconCash } from '@/components/Icons';
+import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard, IconTag, IconTrash, IconCash, IconBuilding } from '@/components/Icons';
 import type { Category, Profile } from '@/lib/types';
 
 export default function PlusPage() {
@@ -81,6 +81,7 @@ export default function PlusPage() {
     { href: '/clients', label: 'Clients & crédit', desc: 'Fiches clients, ardoises, règlements', icon: IconUsers },
     { href: '/fournisseurs', label: 'Fournisseurs & achats', desc: 'Commandes, réceptions de stock', icon: IconTruck },
     { href: '/stats', label: 'Statistiques', desc: 'Chiffre d’affaires, marges, top ventes', icon: IconChart },
+    { href: '/societe', label: 'Profil société', desc: 'Coordonnées, SIRET, TVA, RIB — pour vos factures', icon: IconBuilding },
   ];
 
   return (

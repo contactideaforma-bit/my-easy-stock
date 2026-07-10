@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { generateEAN13, generateSKU } from '@/lib/utils';
-import { IconBack } from '@/components/Icons';
+import { IconBack, IconCamera } from '@/components/Icons';
 import type { Category } from '@/lib/types';
 
 export default function NouveauProduitPage() {
@@ -120,7 +120,7 @@ export default function NouveauProduitPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={preview} alt="" className="w-full h-full object-cover" />
           ) : (
-            <span className="text-3xl opacity-40">📷</span>
+            <IconCamera className="w-8 h-8 text-ink/30" />
           )}
         </div>
         <div>

@@ -189,7 +189,7 @@ export default function VendeurDetailPage() {
         <div className="flex items-center justify-between mb-1">
           <h2 className="section-title">À reverser</h2>
           <span className={`text-xl font-bold ${solde > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
-            {solde > 0 ? fmt(solde) : 'À jour ✓'}
+            {solde > 0 ? fmt(solde) : 'À jour'}
           </span>
         </div>
         <p className="text-ink/45 text-xs mb-3">
@@ -231,7 +231,7 @@ export default function VendeurDetailPage() {
         <div className="glass-strong p-4 space-y-3">
           <h2 className="section-title">Lot à remettre</h2>
           <div className="relative">
-            <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
+            <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
             <input className="input pl-11" placeholder="Article du dépôt…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           {hits.length > 0 && (
