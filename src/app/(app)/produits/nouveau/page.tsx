@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { generateEAN13, generateSKU } from '@/lib/utils';
-import { IconBack, IconCamera } from '@/components/Icons';
+import Scanner from '@/components/Scanner';
+import { IconBack, IconCamera, IconScan } from '@/components/Icons';
 import type { Category } from '@/lib/types';
 
 export default function NouveauProduitPage() {
@@ -22,6 +23,8 @@ export default function NouveauProduitPage() {
   const [sizes, setSizes] = useState('');
   const [colors, setColors] = useState('');
   const [stocks, setStocks] = useState<Record<string, string>>({});
+  const [barcodes, setBarcodes] = useState<Record<string, string>>({});
+  const [scanFor, setScanFor] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
   const [saving, setSaving] = useState(false);
@@ -93,7 +96,8 @@ export default function NouveauProduitPage() {
       size: m.size,
       color: m.color,
       sku: generateSKU(name, m.size, m.color),
-      barcode: generateEAN13(),
+      // code fabricant scanné si présent, sinon EAN-13 généré (pour étiquettes)
+      barcode: barcodes[m.key] || generateEAN13(),
       stock: Number(stocks[m.key]) || 0,
     }));
 
@@ -149,7 +153,7 @@ export default function NouveauProduitPage() {
             {categories.map((c) => (
               <option key={c.id} value={c.id} className="text-black">{c.name}</option>
             ))}
-            <option value="__new__" className="text-black">➕ Nouvelle catégorie…</option>
+            <option value="__new__" className="text-black">+ Nouvelle catégorie…</option>
           </select>
         </div>
         {showNewCat && (
@@ -211,12 +215,25 @@ export default function NouveauProduitPage() {
           </p>
           <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
             {matrix.map((m) => (
-              <div key={m.key} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-ink">
-                  {[m.size, m.color].filter(Boolean).join(' · ') || 'Article standard'}
-                </span>
+              <div key={m.key} className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm text-ink block">
+                    {[m.size, m.color].filter(Boolean).join(' · ') || 'Article standard'}
+                  </span>
+                  {barcodes[m.key] && (
+                    <span className="chip chip-ok !text-[10px] mt-0.5">code {barcodes[m.key]}</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={`!p-2 !rounded-xl shrink-0 ${barcodes[m.key] ? 'btn-primary' : 'btn-glass'}`}
+                  onClick={() => setScanFor(m.key)}
+                  aria-label="Scanner le code-barres existant"
+                >
+                  <IconScan className="w-4 h-4" />
+                </button>
                 <input
-                  className="input !w-24 !py-2 text-center"
+                  className="input !w-20 !py-2 text-center shrink-0"
                   type="number"
                   inputMode="numeric"
                   placeholder="0"
@@ -236,6 +253,22 @@ export default function NouveauProduitPage() {
       <button className="btn-primary w-full py-4" onClick={save} disabled={saving}>
         {saving ? 'Enregistrement…' : 'Créer le produit'}
       </button>
+
+      {scanFor && (
+        <Scanner
+          onDetected={(code) => {
+            const taken = Object.entries(barcodes).find(([k, v]) => v === code && k !== scanFor);
+            if (taken) {
+              setError(`Ce code est déjà affecté à une autre variante (${taken[0].replace('|', ' · ')}).`);
+            } else {
+              setBarcodes((prev) => ({ ...prev, [scanFor]: code }));
+              setError('');
+            }
+            setScanFor(null);
+          }}
+          onClose={() => setScanFor(null)}
+        />
+      )}
     </div>
   );
 }

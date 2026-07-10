@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, variantLabel } from '@/lib/utils';
-import { IconBack, IconTag, IconTrash } from '@/components/Icons';
+import Scanner from '@/components/Scanner';
+import { IconBack, IconTag, IconTrash, IconScan } from '@/components/Icons';
 import type { Product, Variant } from '@/lib/types';
 
 type Movement = {
@@ -36,6 +37,8 @@ export default function ProduitDetailPage() {
   const [salePrice, setSalePrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [scanFor, setScanFor] = useState<string | null>(null);
+  const [scanMsg, setScanMsg] = useState('');
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -64,6 +67,18 @@ export default function ProduitDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function assignBarcode(variantId: string, code: string) {
+    setScanFor(null);
+    const { error } = await supabase().from('product_variants').update({ barcode: code }).eq('id', variantId);
+    if (error) {
+      setScanMsg(error.code === '23505' ? 'Ce code-barres est déjà utilisé par un autre article.' : error.message);
+    } else {
+      setScanMsg(`Code ${code} associé.`);
+      load();
+    }
+    setTimeout(() => setScanMsg(''), 3000);
+  }
 
   async function adjust(variantId: string, delta: number) {
     setBusy(variantId);
@@ -142,14 +157,22 @@ export default function ProduitDetailPage() {
       {/* Variantes */}
       <section className="glass p-4">
         <h2 className="section-title mb-3">Stock par variante</h2>
+        {scanMsg && <p className="text-crystal-700 text-sm mb-2">{scanMsg}</p>}
         <ul className="space-y-3">
           {variants.map((v) => (
             <li key={v.id} className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-ink text-sm font-medium">{variantLabel(v)}</p>
-                <p className="text-ink/45 text-xs truncate">{v.sku}</p>
+                <p className="text-ink/45 text-xs truncate">{v.sku} · {v.barcode || 'sans code'}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <button
+                  className="btn-glass !p-2 !rounded-xl w-9 h-9"
+                  onClick={() => setScanFor(v.id)}
+                  aria-label="Associer un code-barres"
+                >
+                  <IconScan className="w-4 h-4" />
+                </button>
                 <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id || v.stock === 0} onClick={() => adjust(v.id, -1)}>−</button>
                 <span className={`w-10 text-center font-bold ${v.stock === 0 ? 'text-rose-600' : 'text-ink'}`}>{v.stock}</span>
                 <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id} onClick={() => adjust(v.id, 1)}>+</button>
@@ -195,6 +218,10 @@ export default function ProduitDetailPage() {
           <IconTrash /> Archiver
         </button>
       </div>
+
+      {scanFor && (
+        <Scanner onDetected={(code) => assignBarcode(scanFor, code)} onClose={() => setScanFor(null)} />
+      )}
     </div>
   );
 }

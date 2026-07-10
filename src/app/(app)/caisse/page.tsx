@@ -28,6 +28,11 @@ export default function CaissePage() {
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ total: number; change: number; ticket: TicketData | null; saleId: string | null } | null>(null);
 
+  // Association express : code scanné inconnu → le rattacher à un article
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
+  const [assignQ, setAssignQ] = useState('');
+  const [assignHits, setAssignHits] = useState<(Variant & { products: Product })[]>([]);
+
   const total = useMemo(() => cart.reduce((s, l) => s + l.qty * l.unit_price, 0), [cart]);
   const change = Math.max(0, (Number(received) || 0) - total);
 
@@ -114,8 +119,43 @@ export default function CaissePage() {
     if (data && (data as any).products) {
       addToCart((data as any).products, data as any);
     } else {
-      setError(`Code inconnu : ${code}`);
+      // code fabricant pas encore connu → proposer l'association
+      setScanning(false);
+      setPendingCode(code);
+      setAssignQ('');
+      setAssignHits([]);
     }
+  }
+
+  // Recherche pour l'association express
+  useEffect(() => {
+    const s = assignQ.trim();
+    if (s.length < 2 || !pendingCode) {
+      setAssignHits([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const { data } = await supabase()
+        .from('product_variants')
+        .select('*, products!inner(*)')
+        .eq('products.archived', false)
+        .ilike('products.name', `%${s}%`)
+        .limit(8);
+      setAssignHits((data as any) || []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [assignQ, pendingCode]);
+
+  async function assignPendingCode(v: Variant & { products: Product }) {
+    if (!pendingCode) return;
+    const { error: err } = await supabase().from('product_variants').update({ barcode: pendingCode }).eq('id', v.id);
+    if (err) {
+      setError(err.code === '23505' ? 'Ce code est déjà associé à un autre article.' : err.message);
+      setPendingCode(null);
+      return;
+    }
+    setPendingCode(null);
+    addToCart(v.products, { ...v, barcode: pendingCode });
   }
 
   function setQty(variantId: string, qty: number) {
@@ -373,6 +413,49 @@ export default function CaissePage() {
       )}
 
       {scanning && <Scanner onDetected={onScan} onClose={() => setScanning(false)} />}
+
+      {/* Association express d'un code inconnu */}
+      {pendingCode && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setPendingCode(null)}>
+          <div
+            className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-3 max-h-[80dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-ink">Code inconnu</h3>
+            <p className="text-ink/60 text-sm">
+              Le code <span className="chip">{pendingCode}</span> n&apos;est associé à aucun article.
+              Choisissez l&apos;article correspondant : il sera reconnu à tous les prochains scans.
+            </p>
+            <div className="relative">
+              <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
+              <input
+                className="input pl-11"
+                placeholder="Rechercher l'article…"
+                value={assignQ}
+                onChange={(e) => setAssignQ(e.target.value)}
+                autoFocus
+              />
+            </div>
+            {assignHits.length > 0 && (
+              <div className="space-y-1">
+                {assignHits.map((v) => (
+                  <button
+                    key={v.id}
+                    className="w-full flex items-center justify-between text-left py-2 px-2 rounded-xl hover:bg-crystal-500/10"
+                    onClick={() => assignPendingCode(v)}
+                  >
+                    <span className="text-sm text-ink">
+                      {v.products.name} <span className="text-ink/55">· {variantLabel(v)}</span>
+                    </span>
+                    <span className="chip">{stockOf(v)} dispo</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button className="btn-glass w-full" onClick={() => setPendingCode(null)}>Annuler</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
