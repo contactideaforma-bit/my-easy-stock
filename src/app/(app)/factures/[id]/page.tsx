@@ -54,6 +54,8 @@ export default function FacturePage() {
 
   const rate = Number(company?.vat_rate ?? 20) / 100;
   const totalTTC = Number(sale.total);
+  const remise = Number(sale.discount || 0);
+  const sousTotal = totalTTC + remise;
   const totalHT = totalTTC / (1 + rate);
   const totalTVA = totalTTC - totalHT;
   const year = new Date(sale.created_at).getFullYear();
@@ -147,6 +149,14 @@ export default function FacturePage() {
         {/* Totaux */}
         <div className="flex justify-end pt-4">
           <div className="w-56 space-y-1 text-sm">
+            {remise > 0 && (
+              <>
+                <div className="flex justify-between"><span className="text-gray-600">Sous-total TTC</span><span>{fmt(sousTotal)}</span></div>
+                <div className="flex justify-between" style={{ color: '#c74815' }}>
+                  <span>Remise</span><span>−{fmt(remise)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between"><span className="text-gray-600">Total HT</span><span>{fmt(totalHT)}</span></div>
             <div className="flex justify-between">
               <span className="text-gray-600">TVA {rate > 0 ? `(${(rate * 100).toFixed(rate * 100 % 1 ? 1 : 0)} %)` : ''}</span>

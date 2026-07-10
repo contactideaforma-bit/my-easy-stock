@@ -9,8 +9,8 @@ import ProductPicker from '@/components/ProductPicker';
 import { IconBack, IconPlus, IconCash, IconTrash } from '@/components/Icons';
 import type { Product, Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
 
-type VariantHit = Variant & { products: { name: string; sale_price: number } };
-type LotLine = { variant: VariantHit; qty: number };
+type VariantHit = Omit<Variant, 'products'> & { products: { name: string; sale_price: number } };
+type LotLine = { variant: VariantHit; qty: number; price: number };
 type VendorSale = { id: string; number: number; total: number; created_at: string };
 
 function startOfMonth() {
@@ -41,6 +41,7 @@ export default function VendeurDetailPage() {
   const [salePicker, setSalePicker] = useState(false);
   const [saleCart, setSaleCart] = useState<{ variant: Variant; name: string; qty: number; unit_price: number }[]>([]);
   const [saleMethod, setSaleMethod] = useState<'especes' | 'carte'>('especes');
+  const [saleDiscount, setSaleDiscount] = useState('');
   const [saleBusy, setSaleBusy] = useState(false);
   const [saleError, setSaleError] = useState('');
 
@@ -78,9 +79,22 @@ export default function VendeurDetailPage() {
     return m;
   }, [stock]);
 
+  /** Prix convenus avec ce vendeur : variant_id → prix */
+  const agreedMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    stock.forEach((l) => {
+      if (l.agreed_price != null) m[l.variant_id] = Number(l.agreed_price);
+    });
+    return m;
+  }, [stock]);
+
   function addLine(p: Product, v: Variant) {
     const hit: VariantHit = { ...v, products: { name: p.name, sale_price: Number(p.sale_price) } };
-    setLines((prev) => (prev.find((l) => l.variant.id === v.id) ? prev : [...prev, { variant: hit, qty: 1 }]));
+    setLines((prev) =>
+      prev.find((l) => l.variant.id === v.id)
+        ? prev
+        : [...prev, { variant: hit, qty: 1, price: agreedMap[v.id] ?? Number(p.sale_price) }]
+    );
   }
 
   function addSaleLine(p: Product, v: Variant) {
@@ -98,8 +112,12 @@ export default function VendeurDetailPage() {
         next[i] = { ...next[i], qty: next[i].qty + 1 };
         return next;
       }
-      return [...prev, { variant: v, name: p.name, qty: 1, unit_price: Number(p.sale_price) }];
+      return [...prev, { variant: v, name: p.name, qty: 1, unit_price: agreedMap[v.id] ?? Number(p.sale_price) }];
     });
+  }
+
+  function setSalePrice(variantId: string, price: number) {
+    setSaleCart((prev) => prev.map((l) => (l.variant.id === variantId ? { ...l, unit_price: Math.max(0, price) } : l)));
   }
 
   function setSaleQty(variantId: string, qty: number) {
@@ -110,6 +128,10 @@ export default function VendeurDetailPage() {
     );
   }
 
+  const saleTotal = saleCart.reduce((s, l) => s + l.qty * l.unit_price, 0);
+  const saleDiscountVal = Math.min(Math.max(0, Number(saleDiscount) || 0), saleTotal);
+  const saleNet = saleTotal - saleDiscountVal;
+
   async function submitSale() {
     if (saleCart.length === 0) return;
     setSaleBusy(true);
@@ -118,8 +140,9 @@ export default function VendeurDetailPage() {
       p_items: saleCart.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.unit_price })),
       p_payment_method: saleMethod,
       p_customer_id: null,
-      p_paid_amount: saleCart.reduce((s, l) => s + l.qty * l.unit_price, 0),
+      p_paid_amount: saleNet,
       p_vendor_id: id,
+      p_discount: saleDiscountVal,
     });
     setSaleBusy(false);
     if (err) {
@@ -127,6 +150,7 @@ export default function VendeurDetailPage() {
       return;
     }
     setSaleCart([]);
+    setSaleDiscount('');
     setSaleOpen(false);
     load();
   }
@@ -137,7 +161,7 @@ export default function VendeurDetailPage() {
     setError('');
     const { error: err } = await supabase().rpc('allocate_to_vendor', {
       p_vendor_id: id,
-      p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty })),
+      p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, agreed_price: l.price })),
       p_direction: 'sortie',
     });
     setBusy(false);
@@ -285,10 +309,17 @@ export default function VendeurDetailPage() {
             <div key={l.variant.id} className="flex items-center gap-2">
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-ink truncate">{l.variant.products.name}</p>
-                <p className="text-xs text-ink/55">{variantLabel(l.variant)} · dépôt {l.variant.stock}</p>
+                <p className="text-xs text-ink/55">
+                  {variantLabel(l.variant)} · dépôt {l.variant.stock}
+                  {l.price < l.variant.products.sale_price && (
+                    <span className="text-coral-600 font-medium">
+                      {' '}· −{Math.round((1 - l.price / l.variant.products.sale_price) * 100)} %
+                    </span>
+                  )}
+                </p>
               </div>
               <input
-                className="input !w-20 !py-1.5 text-center"
+                className="input !w-16 !py-1.5 text-center"
                 type="number"
                 inputMode="numeric"
                 min={1}
@@ -297,12 +328,29 @@ export default function VendeurDetailPage() {
                 onChange={(e) =>
                   setLines(lines.map((x, j) => (j === i ? { ...x, qty: Math.min(l.variant.stock, Math.max(1, Number(e.target.value) || 1)) } : x)))
                 }
+                aria-label="Quantité"
+              />
+              <input
+                className="input !w-20 !py-1.5 text-center"
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={l.price}
+                onChange={(e) =>
+                  setLines(lines.map((x, j) => (j === i ? { ...x, price: Math.max(0, Number(e.target.value)) } : x)))
+                }
+                aria-label="Prix convenu"
               />
               <button className="text-rose-500/80" onClick={() => setLines(lines.filter((_, j) => j !== i))}>
                 <IconTrash className="w-4 h-4" />
               </button>
             </div>
           ))}
+          {lines.length > 0 && (
+            <p className="text-ink/45 text-xs">
+              Le prix convenu sera proposé automatiquement lors des ventes de ce vendeur.
+            </p>
+          )}
           {error && <p className="text-rose-600 text-sm">{error}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button className="btn-glass" onClick={() => { setAllocating(false); setLines([]); }}>Annuler</button>
@@ -327,7 +375,12 @@ export default function VendeurDetailPage() {
               <li key={l.variant_id} className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-ink truncate">{l.product_variants?.products?.name}</p>
-                  <p className="text-xs text-ink/55">{l.product_variants ? variantLabel(l.product_variants) : ''}</p>
+                  <p className="text-xs text-ink/55">
+                    {l.product_variants ? variantLabel(l.product_variants) : ''}
+                    {l.agreed_price != null && (
+                      <span className="text-crystal-700"> · convenu {fmt(Number(l.agreed_price))}</span>
+                    )}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="chip">{l.qty}</span>
@@ -393,7 +446,19 @@ export default function VendeurDetailPage() {
                   <li key={l.variant.id} className="flex items-center gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ink truncate">{l.name}</p>
-                      <p className="text-xs text-ink/55">{variantLabel(l.variant)} · {fmt(l.unit_price)}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-xs text-ink/55">{variantLabel(l.variant)} ·</span>
+                        <input
+                          className="input !w-[4.5rem] !py-0.5 !px-2 !rounded-lg text-xs text-center"
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal"
+                          value={l.unit_price}
+                          onChange={(e) => setSalePrice(l.variant.id, Number(e.target.value))}
+                          aria-label="Prix unitaire"
+                        />
+                        <span className="text-xs text-ink/40">€/u</span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setSaleQty(l.variant.id, l.qty - 1)}>−</button>
@@ -408,6 +473,27 @@ export default function VendeurDetailPage() {
               </ul>
             )}
 
+            {saleCart.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-ink/60 shrink-0">Remise</span>
+                <input
+                  className="input !py-1.5 !px-3 flex-1 text-center"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={saleDiscount}
+                  onChange={(e) => setSaleDiscount(e.target.value)}
+                />
+                <span className="text-sm text-ink/40">€</span>
+                {[5, 10].map((p) => (
+                  <button key={p} className="chip active:scale-95 shrink-0" onClick={() => setSaleDiscount(String(Math.round(saleTotal * p) / 100))}>
+                    −{p} %
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               {(['especes', 'carte'] as const).map((m) => (
                 <button key={m} className={m === saleMethod ? 'btn-primary !py-2.5' : 'btn-glass !py-2.5'} onClick={() => setSaleMethod(m)}>
@@ -419,7 +505,10 @@ export default function VendeurDetailPage() {
             {saleError && <p className="text-rose-600 text-sm">{saleError}</p>}
             <button className="btn-accent w-full py-4 justify-between px-6" onClick={submitSale} disabled={saleBusy || saleCart.length === 0}>
               <span>{saleBusy ? 'Traitement…' : 'Valider la vente'}</span>
-              <span>{fmt(saleCart.reduce((s, l) => s + l.qty * l.unit_price, 0))}</span>
+              <span>
+                {saleDiscountVal > 0 && <span className="line-through opacity-60 mr-2">{fmt(saleTotal)}</span>}
+                {fmt(saleNet)}
+              </span>
             </button>
           </div>
         </div>

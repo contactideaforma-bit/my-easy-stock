@@ -26,6 +26,9 @@ export default function CaissePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [received, setReceived] = useState('');
+  const [discount, setDiscount] = useState('');
+  const [newClientMode, setNewClientMode] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ total: number; change: number; ticket: TicketData | null; saleId: string | null } | null>(null);
@@ -36,7 +39,13 @@ export default function CaissePage() {
   const [assignHits, setAssignHits] = useState<(Variant & { products: Product })[]>([]);
 
   const total = useMemo(() => cart.reduce((s, l) => s + l.qty * l.unit_price, 0), [cart]);
-  const change = Math.max(0, (Number(received) || 0) - total);
+  const discountVal = Math.min(Math.max(0, Number(discount) || 0), total);
+  const net = total - discountVal;
+  const change = Math.max(0, (Number(received) || 0) - net);
+
+  function setLinePrice(variantId: string, price: number) {
+    setCart((prev) => prev.map((l) => (l.variant.id === variantId ? { ...l, unit_price: Math.max(0, price) } : l)));
+  }
 
   // Recherche produits
   useEffect(() => {
@@ -186,8 +195,9 @@ export default function CaissePage() {
       p_items: cart.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.unit_price })),
       p_payment_method: method,
       p_customer_id: method === 'credit' ? customerId : null,
-      p_paid_amount: method === 'credit' ? 0 : total,
+      p_paid_amount: method === 'credit' ? 0 : net,
       p_vendor_id: vendorId || null,
+      p_discount: discountVal,
     });
     setBusy(false);
     if (err) {
@@ -202,16 +212,18 @@ export default function CaissePage() {
           number: saleRow.number,
           date: saleRow.created_at,
           items: itemsSnapshot,
-          total,
+          total: net,
+          discount: discountVal,
           method,
           vendorName: vendorId ? vendors.find((v) => v.id === vendorId)?.name || null : null,
         };
       }
     }
-    setDone({ total, change: method === 'especes' ? change : 0, ticket, saleId: (saleId as string) || null });
+    setDone({ total: net, change: method === 'especes' ? change : 0, ticket, saleId: (saleId as string) || null });
     setCart([]);
     setPaying(false);
     setReceived('');
+    setDiscount('');
     setCustomerId('');
     if (vendorId) {
       const { data } = await supabase().from('vendor_stock').select('variant_id,qty').eq('vendor_id', vendorId);
@@ -333,9 +345,24 @@ export default function CaissePage() {
               <li key={l.variant.id} className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ink truncate">{l.product.name}</p>
-                  <p className="text-xs text-ink/55">
-                    {variantLabel(l.variant)} · {fmt(l.unit_price)}
-                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-ink/55">{variantLabel(l.variant)} ·</span>
+                    <input
+                      className="input !w-[4.5rem] !py-0.5 !px-2 !rounded-lg text-xs text-center"
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={l.unit_price}
+                      onChange={(e) => setLinePrice(l.variant.id, Number(e.target.value))}
+                      aria-label="Prix unitaire"
+                    />
+                    <span className="text-xs text-ink/40">€/u</span>
+                    {Number(l.product.sale_price) > l.unit_price && (
+                      <span className="chip chip-warn !text-[10px] !px-2">
+                        −{Math.round((1 - l.unit_price / Number(l.product.sale_price)) * 100)} %
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty - 1)}>−</button>
@@ -367,7 +394,38 @@ export default function CaissePage() {
           <div className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-ink">Paiement</h3>
-              <span className="text-2xl font-bold text-crystal-800">{fmt(total)}</span>
+              <div className="text-right">
+                {discountVal > 0 && (
+                  <p className="text-xs text-ink/50 line-through">{fmt(total)}</p>
+                )}
+                <span className="text-2xl font-bold text-crystal-800">{fmt(net)}</span>
+              </div>
+            </div>
+
+            {/* Remise */}
+            <div className="glass !rounded-2xl p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-ink/60 shrink-0">Remise</span>
+                <input
+                  className="input !py-1.5 !px-3 flex-1 text-center"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={discount}
+                  onChange={(e) => setDiscount(e.target.value)}
+                />
+                <span className="text-sm text-ink/40">€</span>
+                {[5, 10, 20].map((p) => (
+                  <button
+                    key={p}
+                    className="chip active:scale-95 shrink-0"
+                    onClick={() => setDiscount(String(Math.round(total * p) / 100))}
+                  >
+                    −{p} %
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -392,7 +450,7 @@ export default function CaissePage() {
                   value={received}
                   onChange={(e) => setReceived(e.target.value)}
                 />
-                {Number(received) >= total && total > 0 && (
+                {Number(received) >= net && net > 0 && (
                   <p className="text-center text-crystal-800 mt-2">
                     Monnaie à rendre : <span className="font-bold text-ink">{fmt(change)}</span>
                   </p>
@@ -400,13 +458,48 @@ export default function CaissePage() {
               </div>
             )}
 
-            {method === 'credit' && (
-              <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+            {method === 'credit' && !newClientMode && (
+              <select
+                className="input"
+                value={customerId}
+                onChange={(e) => {
+                  if (e.target.value === '__new__') setNewClientMode(true);
+                  else setCustomerId(e.target.value);
+                }}
+              >
                 <option value="" className="text-black">Choisir le client…</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id} className="text-black">{c.name}</option>
                 ))}
+                <option value="__new__" className="text-black">+ Nouveau client…</option>
               </select>
+            )}
+            {method === 'credit' && newClientMode && (
+              <div className="flex gap-2">
+                <input
+                  className="input flex-1"
+                  placeholder="Nom du nouveau client"
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  className="btn-primary !px-4"
+                  onClick={async () => {
+                    const n = newClientName.trim();
+                    if (!n) return;
+                    const { data } = await supabase().from('customers').insert({ name: n }).select().single();
+                    if (data) {
+                      setCustomers([...customers, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+                      setCustomerId((data as any).id);
+                    }
+                    setNewClientName('');
+                    setNewClientMode(false);
+                  }}
+                >
+                  Créer
+                </button>
+              </div>
             )}
 
             {error && <p className="text-rose-600 text-sm">{error}</p>}

@@ -39,6 +39,7 @@ export type Sale = {
   created_at: string;
   vendor_id?: string | null;
   canceled_at?: string | null;
+  discount?: number;
   customers?: { name: string } | null;
   vendors?: { name: string } | null;
   sale_items?: SaleItem[];
@@ -64,6 +65,7 @@ export type VendorStockLine = {
   vendor_id: string;
   variant_id: string;
   qty: number;
+  agreed_price?: number | null;
   product_variants?: Variant & { products?: { name: string; sale_price: number } };
 };
 

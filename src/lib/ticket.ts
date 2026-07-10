@@ -7,6 +7,7 @@ export type TicketData = {
   date: string | Date;
   items: { name: string; label?: string | null; qty: number; unit_price: number }[];
   total: number;
+  discount?: number;
   method: string;
   vendorName?: string | null;
 };
@@ -26,7 +27,8 @@ export async function shareTicket(t: TicketData) {
   const W = 640;
   const M = 44;
   const lineH = 52;
-  const H = 300 + t.items.length * lineH + 170;
+  const hasDiscount = (t.discount || 0) > 0;
+  const H = 300 + t.items.length * lineH + 170 + (hasDiscount ? lineH * 2 : 0);
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -77,6 +79,21 @@ export async function shareTicket(t: TicketData) {
     const name = `${it.qty} × ${it.name}${it.label ? ` (${it.label})` : ''}`;
     ctx.fillText(truncate(ctx, name, W - 2 * M - priceW - 24), M, y);
     ctx.fillText(price, W - M - priceW, y);
+    y += lineH;
+  }
+
+  // Sous-total + remise
+  if (hasDiscount) {
+    ctx.font = '28px -apple-system, Helvetica, Arial, sans-serif';
+    ctx.fillStyle = 'rgba(13,43,78,0.6)';
+    const sub = eur(t.total + (t.discount || 0));
+    ctx.fillText('Sous-total', M, y);
+    ctx.fillText(sub, W - M - ctx.measureText(sub).width, y);
+    y += lineH;
+    ctx.fillStyle = '#f05e23';
+    const rem = `−${eur(t.discount || 0)}`;
+    ctx.fillText('Remise', M, y);
+    ctx.fillText(rem, W - M - ctx.measureText(rem).width, y);
     y += lineH;
   }
 

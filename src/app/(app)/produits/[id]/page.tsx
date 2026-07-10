@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
-import { IconBack, IconTag, IconTrash, IconScan } from '@/components/Icons';
+import QuickSale from '@/components/QuickSale';
+import { IconBack, IconTag, IconTrash, IconScan, IconCash } from '@/components/Icons';
 import type { Product, Variant } from '@/lib/types';
 
 type Movement = {
@@ -39,6 +40,7 @@ export default function ProduitDetailPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [scanFor, setScanFor] = useState<string | null>(null);
   const [scanMsg, setScanMsg] = useState('');
+  const [selling, setSelling] = useState(false);
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -154,6 +156,11 @@ export default function ProduitDetailPage() {
         </div>
       </div>
 
+      {/* Vendre */}
+      <button className="btn-accent w-full py-4" onClick={() => setSelling(true)} disabled={total === 0}>
+        <IconCash className="w-5 h-5" /> Vendre ce produit
+      </button>
+
       {/* Variantes */}
       <section className="glass p-4">
         <h2 className="section-title mb-3">Stock par variante</h2>
@@ -221,6 +228,18 @@ export default function ProduitDetailPage() {
 
       {scanFor && (
         <Scanner onDetected={(code) => assignBarcode(scanFor, code)} onClose={() => setScanFor(null)} />
+      )}
+
+      {selling && (
+        <QuickSale
+          product={product}
+          variants={variants}
+          onClose={() => setSelling(false)}
+          onDone={() => {
+            setSelling(false);
+            load();
+          }}
+        />
       )}
     </div>
   );
