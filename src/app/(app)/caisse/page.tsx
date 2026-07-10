@@ -194,7 +194,7 @@ export default function CaissePage() {
     const { data: saleId, error: err } = await supabase().rpc('process_sale', {
       p_items: cart.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.unit_price })),
       p_payment_method: method,
-      p_customer_id: method === 'credit' ? customerId : null,
+      p_customer_id: customerId || null,
       p_paid_amount: method === 'credit' ? 0 : net,
       p_vendor_id: vendorId || null,
       p_discount: discountVal,
@@ -280,9 +280,9 @@ export default function CaissePage() {
           onChange={(e) => setVendorId(e.target.value)}
           aria-label="Source du stock"
         >
-          <option value="" className="text-black">Stock : Dépôt</option>
+          <option value="" className="text-black">Vendu par : Dépôt (moi)</option>
           {vendors.map((v) => (
-            <option key={v.id} value={v.id} className="text-black">Stock : {v.name}</option>
+            <option key={v.id} value={v.id} className="text-black">Vendu par : {v.name}</option>
           ))}
         </select>
       </header>
@@ -461,7 +461,7 @@ export default function CaissePage() {
               </div>
             )}
 
-            {method === 'credit' && !newClientMode && (
+            {!newClientMode && (
               <select
                 className="input"
                 value={customerId}
@@ -470,14 +470,16 @@ export default function CaissePage() {
                   else setCustomerId(e.target.value);
                 }}
               >
-                <option value="" className="text-black">Choisir le client…</option>
+                <option value="" className="text-black">
+                  {method === 'credit' ? 'Choisir le client (obligatoire pour crédit)…' : 'Client de passage (optionnel)…'}
+                </option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id} className="text-black">{c.name}</option>
                 ))}
                 <option value="__new__" className="text-black">+ Nouveau client…</option>
               </select>
             )}
-            {method === 'credit' && newClientMode && (
+            {newClientMode && (
               <div className="flex gap-2">
                 <input
                   className="input flex-1"

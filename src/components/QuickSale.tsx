@@ -5,13 +5,16 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, variantLabel } from '@/lib/utils';
 import { shareTicket } from '@/lib/ticket';
-import { IconCheck, IconInvoice, IconShare } from '@/components/Icons';
+import { IconCheck, IconInvoice, IconShare, IconTrash } from '@/components/Icons';
 import type { Customer, Product, Variant, Vendor } from '@/lib/types';
+
+type Line = { variant: Variant; qty: number; price: number };
 
 /**
  * Vente express depuis une fiche produit :
- * variante + quantité + prix libre, résumé achat/vente/bénéfice,
- * client OU revendeur (créables à la volée), facture et ticket à la fin.
+ * plusieurs déclinaisons sélectionnables (panier), quantité + prix libre par ligne,
+ * résumé achat/vente/bénéfice, client OU revendeur (créables à la volée),
+ * facture et ticket à la fin.
  */
 export default function QuickSale({
   product,
@@ -24,10 +27,7 @@ export default function QuickSale({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const firstAvailable = variants.find((v) => v.stock > 0) || variants[0];
-  const [variantId, setVariantId] = useState(firstAvailable?.id || '');
-  const [qty, setQty] = useState(1);
-  const [price, setPrice] = useState(Number(product.sale_price));
+  const [lines, setLines] = useState<Line[]>([]);
   const [target, setTarget] = useState<'client' | 'vendeur'>('client');
   const [method, setMethod] = useState<'especes' | 'carte' | 'credit'>('especes');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -41,9 +41,7 @@ export default function QuickSale({
   const [newPhone, setNewPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ saleId: string; number: number; date: string } | null>(null);
-
-  const variant = variants.find((v) => v.id === variantId);
+  const [done, setDone] = useState<{ saleId: string; number: number; date: string; total: number; benefice: number } | null>(null);
 
   useEffect(() => {
     const sb = supabase();
@@ -53,6 +51,7 @@ export default function QuickSale({
 
   // Stock du revendeur sélectionné pour ce produit
   useEffect(() => {
+    setLines([]);
     if (target !== 'vendeur' || !vendorId) {
       setVendorMap({});
       setAgreedMap({});
@@ -76,23 +75,46 @@ export default function QuickSale({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, vendorId]);
 
-  // Prix convenu proposé automatiquement pour un revendeur
-  useEffect(() => {
-    if (target === 'vendeur' && variantId && agreedMap[variantId] != null) setPrice(agreedMap[variantId]);
-    if (target === 'client') setPrice(Number(product.sale_price));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, vendorId, variantId, agreedMap]);
+  const dispo = (v: Variant) => (target === 'vendeur' ? vendorMap[v.id] || 0 : v.stock);
+  const inCart = (v: Variant) => lines.find((l) => l.variant.id === v.id)?.qty || 0;
 
-  const dispo = useMemo(() => {
-    if (!variant) return 0;
-    return target === 'vendeur' ? vendorMap[variant.id] || 0 : variant.stock;
-  }, [variant, target, vendorMap]);
+  function tapVariant(v: Variant) {
+    setError('');
+    const max = dispo(v);
+    setLines((prev) => {
+      const i = prev.findIndex((l) => l.variant.id === v.id);
+      if (i >= 0) {
+        if (prev[i].qty + 1 > max) return prev;
+        const next = [...prev];
+        next[i] = { ...next[i], qty: next[i].qty + 1 };
+        return next;
+      }
+      if (max < 1) return prev;
+      const defaultPrice = target === 'vendeur' && agreedMap[v.id] != null ? agreedMap[v.id] : Number(product.sale_price);
+      return [...prev, { variant: v, qty: 1, price: defaultPrice }];
+    });
+  }
 
-  const totalVente = qty * price;
-  const totalAchat = qty * Number(product.purchase_price);
+  function setQty(variantId: string, qty: number) {
+    setLines((prev) => {
+      const l = prev.find((x) => x.variant.id === variantId);
+      if (!l) return prev;
+      const max = dispo(l.variant);
+      return qty <= 0
+        ? prev.filter((x) => x.variant.id !== variantId)
+        : prev.map((x) => (x.variant.id === variantId ? { ...x, qty: Math.min(qty, max) } : x));
+    });
+  }
+
+  function setPrice(variantId: string, price: number) {
+    setLines((prev) => prev.map((x) => (x.variant.id === variantId ? { ...x, price: Math.max(0, price) } : x)));
+  }
+
+  const totalVente = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const totalAchat = lines.reduce((s, l) => s + l.qty * Number(product.purchase_price), 0);
   const benefice = totalVente - totalAchat;
+  const nbPieces = lines.reduce((s, l) => s + l.qty, 0);
   const catalogue = Number(product.sale_price);
-  const remisePct = price < catalogue ? Math.round((1 - price / catalogue) * 100) : 0;
 
   async function createContact() {
     const n = newName.trim();
@@ -117,7 +139,10 @@ export default function QuickSale({
   }
 
   async function submit() {
-    if (!variant) return;
+    if (lines.length === 0) {
+      setError('Sélectionnez au moins une déclinaison.');
+      return;
+    }
     if (target === 'vendeur' && !vendorId) {
       setError('Choisissez ou créez le revendeur.');
       return;
@@ -129,8 +154,8 @@ export default function QuickSale({
     setBusy(true);
     setError('');
     const { data: saleId, error: err } = await supabase().rpc('process_sale', {
-      p_items: [{ variant_id: variant.id, qty, unit_price: price }],
-      p_payment_method: target === 'vendeur' ? (method === 'credit' ? 'especes' : method) : method,
+      p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.price })),
+      p_payment_method: target === 'vendeur' && method === 'credit' ? 'especes' : method,
       p_customer_id: target === 'client' && customerId ? customerId : null,
       p_paid_amount: method === 'credit' ? 0 : totalVente,
       p_vendor_id: target === 'vendeur' ? vendorId : null,
@@ -142,7 +167,13 @@ export default function QuickSale({
       return;
     }
     const { data: saleRow } = await supabase().from('sales').select('number,created_at').eq('id', saleId).single();
-    setDone({ saleId: saleId as string, number: saleRow?.number || 0, date: saleRow?.created_at || new Date().toISOString() });
+    setDone({
+      saleId: saleId as string,
+      number: saleRow?.number || 0,
+      date: saleRow?.created_at || new Date().toISOString(),
+      total: totalVente,
+      benefice,
+    });
   }
 
   /* ---------- Écran de succès ---------- */
@@ -155,8 +186,8 @@ export default function QuickSale({
           </div>
           <div>
             <h3 className="text-xl font-bold text-ink">Vente enregistrée</h3>
-            <p className="text-crystal-800 text-lg font-semibold mt-1">{fmt(totalVente)}</p>
-            <p className="text-emerald-600 text-sm">Bénéfice : {fmt(benefice)}</p>
+            <p className="text-crystal-800 text-lg font-semibold mt-1">{fmt(done.total)}</p>
+            <p className="text-emerald-600 text-sm">Bénéfice : {fmt(done.benefice)}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Link href={`/factures/${done.saleId}`} className="btn-primary">
@@ -168,8 +199,8 @@ export default function QuickSale({
                 shareTicket({
                   number: done.number,
                   date: done.date,
-                  items: [{ name: product.name, label: variant ? variantLabel(variant) : null, qty, unit_price: price }],
-                  total: totalVente,
+                  items: lines.map((l) => ({ name: product.name, label: variantLabel(l.variant), qty: l.qty, unit_price: l.price })),
+                  total: done.total,
                   method,
                   vendorName: target === 'vendeur' ? vendors.find((v) => v.id === vendorId)?.name || null : null,
                 })
@@ -187,65 +218,10 @@ export default function QuickSale({
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
       <div
-        className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[90dvh] overflow-y-auto"
+        className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-lg font-bold text-ink">Vendre — {product.name}</h3>
-
-        {/* Variante */}
-        <div className="flex flex-wrap gap-1.5">
-          {variants.map((v) => {
-            const d = target === 'vendeur' ? vendorMap[v.id] || 0 : v.stock;
-            return (
-              <button
-                key={v.id}
-                className={`chip ${variantId === v.id ? '!bg-crystal-600 !text-white !border-crystal-600' : ''} ${d === 0 ? 'opacity-40' : ''}`}
-                onClick={() => { setVariantId(v.id); setQty(1); }}
-              >
-                {variantLabel(v)} ({d})
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Quantité + prix */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <button className="btn-glass !p-0 w-9 h-9 !rounded-xl" onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-            <span className="w-8 text-center font-bold text-ink">{qty}</span>
-            <button className="btn-glass !p-0 w-9 h-9 !rounded-xl" onClick={() => setQty(Math.min(dispo || 1, qty + 1))}>+</button>
-          </div>
-          <div className="flex items-center gap-1.5 flex-1">
-            <input
-              className="input !py-2 text-center font-semibold"
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              value={price}
-              onChange={(e) => setPrice(Math.max(0, Number(e.target.value)))}
-              aria-label="Prix unitaire"
-            />
-            <span className="text-ink/40 text-sm shrink-0">€/u</span>
-          </div>
-          {remisePct > 0 && <span className="chip chip-warn shrink-0">−{remisePct} %</span>}
-        </div>
-        {dispo === 0 && <p className="text-orange-700/90 text-xs">Aucun stock disponible pour cette variante {target === 'vendeur' ? 'chez ce revendeur' : 'au dépôt'}.</p>}
-
-        {/* Résumé bénéfice */}
-        <div className="glass !rounded-2xl p-3 grid grid-cols-3 text-center">
-          <div>
-            <p className="text-ink/50 text-[11px]">Achat</p>
-            <p className="font-semibold text-ink text-sm">{fmt(totalAchat)}</p>
-          </div>
-          <div>
-            <p className="text-ink/50 text-[11px]">Vente</p>
-            <p className="font-semibold text-ink text-sm">{fmt(totalVente)}</p>
-          </div>
-          <div>
-            <p className="text-ink/50 text-[11px]">Bénéfice</p>
-            <p className={`font-bold text-sm ${benefice >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(benefice)}</p>
-          </div>
-        </div>
 
         {/* Pour qui ? */}
         <div className="grid grid-cols-2 gap-2">
@@ -286,6 +262,85 @@ export default function QuickSale({
           </div>
         )}
 
+        {/* Déclinaisons : tap pour ajouter (plusieurs possibles) */}
+        <div>
+          <p className="text-ink/55 text-xs mb-1.5">
+            Touchez les déclinaisons vendues — plusieurs possibles, chaque touche ajoute une pièce :
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {variants.map((v) => {
+              const d = dispo(v);
+              const n = inCart(v);
+              return (
+                <button
+                  key={v.id}
+                  className={`chip ${n > 0 ? '!bg-crystal-600 !text-white !border-crystal-600' : ''} ${d === 0 ? 'opacity-35' : 'active:scale-95'}`}
+                  disabled={d === 0}
+                  onClick={() => tapVariant(v)}
+                >
+                  {variantLabel(v)} {n > 0 ? `×${n}` : `(${d})`}
+                </button>
+              );
+            })}
+          </div>
+          {target === 'vendeur' && !vendorId && (
+            <p className="text-orange-700/90 text-xs mt-1.5">Choisissez d&apos;abord le revendeur pour voir son stock.</p>
+          )}
+        </div>
+
+        {/* Lignes du panier */}
+        {lines.length > 0 && (
+          <ul className="space-y-2.5">
+            {lines.map((l) => (
+              <li key={l.variant.id} className="flex items-center gap-2">
+                <span className="text-sm font-medium text-ink w-20 shrink-0 truncate">{variantLabel(l.variant)}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty - 1)}>−</button>
+                  <span className="w-6 text-center font-bold text-ink text-sm">{l.qty}</span>
+                  <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty + 1)}>+</button>
+                </div>
+                <input
+                  className="input !py-1 !px-2 !rounded-lg text-sm text-center flex-1"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={l.price}
+                  onChange={(e) => setPrice(l.variant.id, Number(e.target.value))}
+                  aria-label="Prix unitaire"
+                />
+                {l.price < catalogue && (
+                  <span className="chip chip-warn !text-[10px] !px-1.5 shrink-0">−{Math.round((1 - l.price / catalogue) * 100)}%</span>
+                )}
+                <button className="text-rose-500/70 shrink-0" onClick={() => setQty(l.variant.id, 0)}>
+                  <IconTrash className="w-4 h-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Résumé bénéfice */}
+        {lines.length > 0 && (
+          <div className="glass !rounded-2xl p-3 grid grid-cols-4 text-center">
+            <div>
+              <p className="text-ink/50 text-[11px]">Pièces</p>
+              <p className="font-semibold text-ink text-sm">{nbPieces}</p>
+            </div>
+            <div>
+              <p className="text-ink/50 text-[11px]">Achat</p>
+              <p className="font-semibold text-ink text-sm">{fmt(totalAchat)}</p>
+            </div>
+            <div>
+              <p className="text-ink/50 text-[11px]">Vente</p>
+              <p className="font-semibold text-ink text-sm">{fmt(totalVente)}</p>
+            </div>
+            <div>
+              <p className="text-ink/50 text-[11px]">Bénéfice</p>
+              <p className={`font-bold text-sm ${benefice >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(benefice)}</p>
+            </div>
+          </div>
+        )}
+
         {/* Paiement */}
         <div className="grid grid-cols-3 gap-2">
           {(['especes', 'carte', 'credit'] as const).map((m) => (
@@ -301,7 +356,7 @@ export default function QuickSale({
         </div>
 
         {error && <p className="text-rose-600 text-sm">{error}</p>}
-        <button className="btn-accent w-full py-4 justify-between px-6" onClick={submit} disabled={busy || dispo === 0 || !variant}>
+        <button className="btn-accent w-full py-4 justify-between px-6" onClick={submit} disabled={busy || lines.length === 0}>
           <span>{busy ? 'Traitement…' : 'Valider la vente'}</span>
           <span>{fmt(totalVente)}</span>
         </button>
