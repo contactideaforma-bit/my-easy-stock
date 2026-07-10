@@ -46,7 +46,7 @@ export default function MentionsLegalesPage() {
       <header className="mx-auto w-full max-w-3xl flex items-center justify-between px-5 py-5">
         <Link href="/" className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="My Easy Stock" className="w-10 h-10 rounded-xl" />
+          <img src="/logo-192.png" alt="My Easy Stock" className="w-10 h-10" />
           <span className="font-bold text-ink text-lg tracking-tight">My Easy Stock</span>
         </Link>
         <Link href="/" className="btn-glass !py-2 !px-4 text-sm">

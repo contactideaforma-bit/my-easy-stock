@@ -48,7 +48,7 @@ export default function LandingPage() {
       <header className="fade-up fade-up-1 mx-auto w-full max-w-5xl flex items-center justify-between px-5 py-5">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="My Easy Stock" className="w-10 h-10 rounded-xl" />
+          <img src="/logo-192.png" alt="My Easy Stock" className="w-10 h-10" />
           <span className="font-bold text-ink text-lg tracking-tight">My Easy Stock</span>
         </div>
         <Link href="/app" className="btn-primary !py-2 !px-5 text-sm">

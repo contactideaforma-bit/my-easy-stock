@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'My Easy Stock',
   description: 'Gestion de stock textile & chaussures — simple, mobile, indispensable.',
   manifest: '/manifest.json',
+  icons: { icon: '/logo-192.png', apple: '/logo-512.png' },
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'My Easy Stock' },
 };
 
