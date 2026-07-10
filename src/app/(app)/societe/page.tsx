@@ -17,12 +17,24 @@ type Settings = {
   iban: string;
   bic: string;
   invoice_footer: string;
+  logo_url: string;
+  invoice_color: string;
+  invoice_theme: 'classique' | 'moderne' | 'minimal';
 };
 
 const EMPTY: Settings = {
   name: '', legal_form: '', address: '', phone: '', email: '',
   siret: '', vat_number: '', vat_rate: '20', iban: '', bic: '', invoice_footer: '',
+  logo_url: '', invoice_color: '#257ceb', invoice_theme: 'classique',
 };
+
+const PALETTE = ['#257ceb', '#0f766e', '#7c3aed', '#be185d', '#b91c1c', '#c2410c', '#a16207', '#166534', '#1e3a5f', '#111827'];
+
+const THEMES: { key: Settings['invoice_theme']; label: string; desc: string }[] = [
+  { key: 'classique', label: 'Classique', desc: 'En-tête souligné, sobre et professionnel' },
+  { key: 'moderne', label: 'Moderne', desc: 'Bandeau de couleur pleine en tête' },
+  { key: 'minimal', label: 'Minimal', desc: 'Épuré, la couleur uniquement sur le total' },
+];
 
 export default function SocietePage() {
   const [s, setS] = useState<Settings>(EMPTY);
@@ -50,6 +62,9 @@ export default function SocietePage() {
             iban: data.iban || '',
             bic: data.bic || '',
             invoice_footer: data.invoice_footer || '',
+            logo_url: data.logo_url || '',
+            invoice_color: data.invoice_color || '#257ceb',
+            invoice_theme: data.invoice_theme || 'classique',
           });
         }
         setLoading(false);
@@ -78,6 +93,9 @@ export default function SocietePage() {
         iban: s.iban.trim() || null,
         bic: s.bic.trim() || null,
         invoice_footer: s.invoice_footer.trim() || null,
+        logo_url: s.logo_url || null,
+        invoice_color: s.invoice_color,
+        invoice_theme: s.invoice_theme,
         updated_at: new Date().toISOString(),
       });
     setSaving(false);
@@ -132,6 +150,93 @@ export default function SocietePage() {
         <h2 className="section-title">Coordonnées bancaires (RIB)</h2>
         <input className="input" placeholder="IBAN" value={s.iban} onChange={set('iban')} />
         <input className="input" placeholder="BIC" value={s.bic} onChange={set('bic')} />
+      </div>
+
+      {/* Personnalisation des factures */}
+      <div className="glass p-4 space-y-4">
+        <h2 className="section-title">Apparence des factures</h2>
+
+        {/* Logo */}
+        <label className="flex items-center gap-4 cursor-pointer">
+          <div className="w-16 h-16 rounded-2xl bg-white border border-ink/10 flex items-center justify-center overflow-hidden shrink-0">
+            {s.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.logo_url} alt="Logo" className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-ink/30 text-xs text-center px-1">Logo</span>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-ink text-sm">Logo de la société</p>
+            <p className="text-ink/50 text-xs">Affiché en tête des factures — touchez pour choisir une image</p>
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const path = `logo-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+              const sb = supabase();
+              const { error } = await sb.storage.from('produits').upload(path, f);
+              if (!error) {
+                setS({ ...s, logo_url: sb.storage.from('produits').getPublicUrl(path).data.publicUrl });
+                setSaved(false);
+              } else alert(error.message);
+            }}
+          />
+        </label>
+
+        {/* Couleur dominante */}
+        <div>
+          <p className="text-ink/55 text-xs mb-2">Couleur dominante</p>
+          <div className="flex flex-wrap gap-2">
+            {PALETTE.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`w-9 h-9 rounded-full border-2 transition active:scale-90 ${s.invoice_color === c ? 'border-ink scale-110' : 'border-white'}`}
+                style={{ background: c }}
+                onClick={() => { setS({ ...s, invoice_color: c }); setSaved(false); }}
+                aria-label={`Couleur ${c}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Thème */}
+        <div>
+          <p className="text-ink/55 text-xs mb-2">Thème de facture</p>
+          <div className="grid grid-cols-3 gap-2">
+            {THEMES.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`rounded-2xl border p-2.5 text-left transition active:scale-[0.97] ${s.invoice_theme === t.key ? 'border-crystal-600 bg-crystal-500/10' : 'border-ink/10 bg-white/50'}`}
+                onClick={() => { setS({ ...s, invoice_theme: t.key }); setSaved(false); }}
+              >
+                {/* mini aperçu */}
+                <div className="rounded-lg bg-white border border-ink/10 p-1.5 mb-2 space-y-1">
+                  {t.key === 'moderne' ? (
+                    <div className="h-3 rounded-sm" style={{ background: s.invoice_color }} />
+                  ) : t.key === 'classique' ? (
+                    <div className="h-3 border-b-2 flex items-end" style={{ borderColor: s.invoice_color }}>
+                      <div className="h-1.5 w-1/2 rounded-sm" style={{ background: s.invoice_color, opacity: 0.7 }} />
+                    </div>
+                  ) : (
+                    <div className="h-3 flex items-end"><div className="h-[3px] w-1/3 rounded-sm bg-ink/20" /></div>
+                  )}
+                  <div className="h-1 rounded bg-ink/10 w-full" />
+                  <div className="h-1 rounded bg-ink/10 w-4/5" />
+                  <div className="h-1.5 rounded w-2/5 ml-auto" style={{ background: t.key === 'minimal' ? s.invoice_color : 'rgba(13,43,78,0.25)' }} />
+                </div>
+                <p className="text-xs font-semibold text-ink">{t.label}</p>
+                <p className="text-[10px] text-ink/45 leading-tight mt-0.5">{t.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="glass p-4 space-y-3">

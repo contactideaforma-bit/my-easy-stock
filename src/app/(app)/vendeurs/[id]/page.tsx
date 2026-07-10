@@ -9,7 +9,7 @@ import ProductPicker from '@/components/ProductPicker';
 import { IconBack, IconPlus, IconCash, IconTrash } from '@/components/Icons';
 import type { Product, Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
 
-type VariantHit = Omit<Variant, 'products'> & { products: { name: string; sale_price: number } };
+type VariantHit = Omit<Variant, 'products'> & { products: { name: string; sale_price: number; purchase_price: number } };
 type LotLine = { variant: VariantHit; qty: number; price: number };
 type VendorSale = { id: string; number: number; total: number; created_at: string };
 
@@ -106,7 +106,10 @@ export default function VendeurDetailPage() {
   }, [stock]);
 
   function addLine(p: Product, v: Variant) {
-    const hit: VariantHit = { ...v, products: { name: p.name, sale_price: Number(p.sale_price) } };
+    const hit: VariantHit = {
+      ...v,
+      products: { name: p.name, sale_price: Number(p.sale_price), purchase_price: Number(p.purchase_price) },
+    };
     setLines((prev) =>
       prev.find((l) => l.variant.id === v.id)
         ? prev
@@ -173,6 +176,7 @@ export default function VendeurDetailPage() {
   }
 
   const lotValue = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const lotCost = lines.reduce((s, l) => s + l.qty * l.variant.products.purchase_price, 0);
   const lotDue =
     dueType === 'montant'
       ? Math.max(0, Number(dueAmount) || 0)
@@ -452,10 +456,25 @@ export default function VendeurDetailPage() {
                     ))}
                   </div>
                 )}
-                <p className="text-ink text-sm font-medium mt-2">
-                  Valeur du lot : {fmt(lotValue)}
-                  {lotDue != null && <span className="text-coral-600"> · à reverser : {fmt(lotDue)}</span>}
-                </p>
+                {/* Bénéfice en temps réel */}
+                <div className="glass !rounded-2xl p-3 mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <span className="text-ink/60">Valeur du lot (prix convenus)</span>
+                  <span className="text-right font-semibold text-ink">{fmt(lotValue)}</span>
+                  <span className="text-ink/60">Coût d&apos;achat du lot</span>
+                  <span className="text-right text-ink">{fmt(lotCost)}</span>
+                  <span className="text-ink/60">Reversement du vendeur</span>
+                  <span className="text-right font-semibold text-coral-600">
+                    {lotDue != null ? fmt(lotDue) : `${fmt(lotValue)} (au réel, si tout est vendu)`}
+                  </span>
+                  <span className="text-ink font-semibold border-t border-ink/10 pt-1.5 mt-0.5">
+                    Votre bénéfice{lotDue == null ? ' estimé' : ''}
+                  </span>
+                  <span
+                    className={`text-right font-bold border-t border-ink/10 pt-1.5 mt-0.5 ${(lotDue ?? lotValue) - lotCost >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                  >
+                    {fmt((lotDue ?? lotValue) - lotCost)}
+                  </span>
+                </div>
               </div>
             </>
           )}

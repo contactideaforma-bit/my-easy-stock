@@ -5,16 +5,20 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDay } from '@/lib/utils';
 import { IconBack, IconPlus } from '@/components/Icons';
+import { customerLabel } from '@/lib/types';
 import type { Customer } from '@/lib/types';
 
 type CustomerRow = Customer & { due: number };
+type Fiche = { name: string; first_name: string; phone: string; email: string; address: string };
+const EMPTY_FICHE: Fiche = { name: '', first_name: '', phone: '', email: '', address: '' };
 
 export default function ClientsPage() {
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [fiche, setFiche] = useState<Fiche>(EMPTY_FICHE);
   const [selected, setSelected] = useState<CustomerRow | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editFiche, setEditFiche] = useState<Fiche>(EMPTY_FICHE);
   const [payAmount, setPayAmount] = useState('');
   const [history, setHistory] = useState<{ label: string; amount: number; date: string; type: 'vente' | 'reglement' }[]>([]);
 
@@ -41,6 +45,7 @@ export default function ClientsPage() {
 
   async function openCustomer(c: CustomerRow) {
     setSelected(c);
+    setEditing(false);
     setPayAmount('');
     const sb = supabase();
     const [{ data: sales }, { data: pays }] = await Promise.all([
@@ -59,12 +64,38 @@ export default function ClientsPage() {
     setHistory(h);
   }
 
+  const ficheToRecord = (f: Fiche) => ({
+    name: f.name.trim(),
+    first_name: f.first_name.trim() || null,
+    phone: f.phone.trim() || null,
+    email: f.email.trim() || null,
+    address: f.address.trim() || null,
+  });
+
   async function addCustomer() {
-    if (!name.trim()) return;
-    await supabase().from('customers').insert({ name: name.trim(), phone: phone.trim() || null });
-    setName('');
-    setPhone('');
+    if (!fiche.name.trim()) return;
+    await supabase().from('customers').insert(ficheToRecord(fiche));
+    setFiche(EMPTY_FICHE);
     setAdding(false);
+    load();
+  }
+
+  function startEdit(c: CustomerRow) {
+    setEditFiche({
+      name: c.name || '',
+      first_name: c.first_name || '',
+      phone: c.phone || '',
+      email: c.email || '',
+      address: c.address || '',
+    });
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!selected || !editFiche.name.trim()) return;
+    await supabase().from('customers').update(ficheToRecord(editFiche)).eq('id', selected.id);
+    setEditing(false);
+    setSelected(null);
     load();
   }
 
@@ -92,9 +123,14 @@ export default function ClientsPage() {
 
       {adding && (
         <div className="glass p-4 space-y-3">
-          <input className="input" placeholder="Nom du client *" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="input" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <button className="btn-primary w-full" onClick={addCustomer}>Ajouter</button>
+          <div className="grid grid-cols-2 gap-3">
+            <input className="input" placeholder="Prénom" value={fiche.first_name} onChange={(e) => setFiche({ ...fiche, first_name: e.target.value })} />
+            <input className="input" placeholder="Nom *" value={fiche.name} onChange={(e) => setFiche({ ...fiche, name: e.target.value })} />
+            <input className="input" placeholder="Téléphone" value={fiche.phone} onChange={(e) => setFiche({ ...fiche, phone: e.target.value })} />
+            <input className="input" type="email" placeholder="Email" value={fiche.email} onChange={(e) => setFiche({ ...fiche, email: e.target.value })} />
+          </div>
+          <input className="input" placeholder="Adresse" value={fiche.address} onChange={(e) => setFiche({ ...fiche, address: e.target.value })} />
+          <button className="btn-primary w-full" onClick={addCustomer}>Créer la fiche client</button>
         </div>
       )}
 
@@ -105,8 +141,8 @@ export default function ClientsPage() {
           {rows.map((c) => (
             <button key={c.id} className="w-full flex items-center justify-between p-3 text-left" onClick={() => openCustomer(c)}>
               <div>
-                <p className="text-ink font-medium text-sm">{c.name}</p>
-                {c.phone && <p className="text-ink/45 text-xs">{c.phone}</p>}
+                <p className="text-ink font-medium text-sm">{customerLabel(c)}</p>
+                {(c.phone || c.email) && <p className="text-ink/45 text-xs">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>}
               </div>
               {c.due > 0 ? <span className="chip chip-warn">doit {fmt(c.due)}</span> : <span className="chip chip-ok">à jour</span>}
             </button>
@@ -118,12 +154,41 @@ export default function ClientsPage() {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setSelected(null)}>
           <div className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[85dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div>
-              <h3 className="text-lg font-bold text-ink">{selected.name}</h3>
-              <p className={selected.due > 0 ? 'text-orange-700' : 'text-emerald-700'}>
-                {selected.due > 0 ? `Crédit en cours : ${fmt(selected.due)}` : 'Compte à jour'}
-              </p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-bold text-ink">{customerLabel(selected)}</h3>
+                <p className={selected.due > 0 ? 'text-orange-700' : 'text-emerald-700'}>
+                  {selected.due > 0 ? `Crédit en cours : ${fmt(selected.due)}` : 'Compte à jour'}
+                </p>
+              </div>
+              {!editing && (
+                <button className="btn-glass !py-1.5 !px-3 text-xs shrink-0" onClick={() => startEdit(selected)}>
+                  Modifier la fiche
+                </button>
+              )}
             </div>
+
+            {editing ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input className="input !py-2" placeholder="Prénom" value={editFiche.first_name} onChange={(e) => setEditFiche({ ...editFiche, first_name: e.target.value })} />
+                  <input className="input !py-2" placeholder="Nom *" value={editFiche.name} onChange={(e) => setEditFiche({ ...editFiche, name: e.target.value })} />
+                  <input className="input !py-2" placeholder="Téléphone" value={editFiche.phone} onChange={(e) => setEditFiche({ ...editFiche, phone: e.target.value })} />
+                  <input className="input !py-2" type="email" placeholder="Email" value={editFiche.email} onChange={(e) => setEditFiche({ ...editFiche, email: e.target.value })} />
+                </div>
+                <input className="input !py-2" placeholder="Adresse" value={editFiche.address} onChange={(e) => setEditFiche({ ...editFiche, address: e.target.value })} />
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="btn-glass !py-2" onClick={() => setEditing(false)}>Annuler</button>
+                  <button className="btn-primary !py-2" onClick={saveEdit}>Enregistrer</button>
+                </div>
+              </div>
+            ) : (
+              (selected.phone || selected.email || selected.address) && (
+                <p className="text-ink/55 text-sm">
+                  {[selected.phone, selected.email, selected.address].filter(Boolean).join(' · ')}
+                </p>
+              )
+            )}
 
             {selected.due > 0 && (
               <div className="flex gap-2">

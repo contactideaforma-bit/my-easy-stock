@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { fmt, variantLabel } from '@/lib/utils';
 import { shareTicket } from '@/lib/ticket';
 import { IconCheck, IconInvoice, IconShare, IconTrash } from '@/components/Icons';
+import { customerLabel } from '@/lib/types';
 import type { Customer, Product, Variant, Vendor } from '@/lib/types';
 
 type Line = { variant: Variant; qty: number; price: number };
@@ -38,7 +39,10 @@ export default function QuickSale({
   const [agreedMap, setAgreedMap] = useState<Record<string, number>>({});
   const [newMode, setNewMode] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newFirst, setNewFirst] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newAddress, setNewAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ saleId: string; number: number; date: string; total: number; benefice: number } | null>(null);
@@ -121,7 +125,17 @@ export default function QuickSale({
     if (!n) return;
     const sb = supabase();
     if (target === 'client') {
-      const { data } = await sb.from('customers').insert({ name: n, phone: newPhone.trim() || null }).select().single();
+      const { data } = await sb
+        .from('customers')
+        .insert({
+          name: n,
+          first_name: newFirst.trim() || null,
+          phone: newPhone.trim() || null,
+          email: newEmail.trim() || null,
+          address: newAddress.trim() || null,
+        })
+        .select()
+        .single();
       if (data) {
         setCustomers([...customers, data as any].sort((a, b) => a.name.localeCompare(b.name)));
         setCustomerId((data as any).id);
@@ -134,7 +148,10 @@ export default function QuickSale({
       }
     }
     setNewName('');
+    setNewFirst('');
     setNewPhone('');
+    setNewEmail('');
+    setNewAddress('');
     setNewMode(false);
   }
 
@@ -250,10 +267,27 @@ export default function QuickSale({
               {target === 'client' ? 'Client de passage (optionnel)…' : 'Choisir le revendeur…'}
             </option>
             {(target === 'client' ? customers : vendors).map((c) => (
-              <option key={c.id} value={c.id} className="text-black">{c.name}</option>
+              <option key={c.id} value={c.id} className="text-black">
+                {target === 'client' ? customerLabel(c as Customer) : c.name}
+              </option>
             ))}
             <option value="__new__" className="text-black">+ Nouveau {target === 'client' ? 'client' : 'revendeur'}…</option>
           </select>
+        ) : target === 'client' ? (
+          <div className="glass !rounded-2xl p-3 space-y-2">
+            <p className="section-title !text-xs">Nouvelle fiche client</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input className="input !py-2" placeholder="Prénom" value={newFirst} onChange={(e) => setNewFirst(e.target.value)} autoFocus />
+              <input className="input !py-2" placeholder="Nom *" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <input className="input !py-2" placeholder="Téléphone" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+              <input className="input !py-2" type="email" placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+            </div>
+            <input className="input !py-2" placeholder="Adresse" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} />
+            <div className="grid grid-cols-2 gap-2">
+              <button className="btn-glass !py-2" onClick={() => setNewMode(false)}>Annuler</button>
+              <button className="btn-primary !py-2" onClick={createContact}>Créer la fiche</button>
+            </div>
+          </div>
         ) : (
           <div className="flex gap-2">
             <input className="input flex-1" placeholder="Nom *" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />

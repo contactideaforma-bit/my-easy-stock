@@ -8,6 +8,7 @@ import Scanner from '@/components/Scanner';
 import ProductPicker from '@/components/ProductPicker';
 import { shareTicket, TicketData } from '@/lib/ticket';
 import { IconScan, IconSearch, IconTrash, IconCheck, IconShare, IconInvoice } from '@/components/Icons';
+import { customerLabel } from '@/lib/types';
 import type { CartLine, Customer, Product, Variant, Vendor } from '@/lib/types';
 
 type SearchHit = Product & { product_variants: Variant[] };
@@ -28,7 +29,7 @@ export default function CaissePage() {
   const [received, setReceived] = useState('');
   const [discount, setDiscount] = useState('');
   const [newClientMode, setNewClientMode] = useState(false);
-  const [newClientName, setNewClientName] = useState('');
+  const [newClient, setNewClient] = useState({ name: '', first_name: '', phone: '', email: '', address: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ total: number; change: number; ticket: TicketData | null; saleId: string | null } | null>(null);
@@ -474,36 +475,50 @@ export default function CaissePage() {
                   {method === 'credit' ? 'Choisir le client (obligatoire pour crédit)…' : 'Client de passage (optionnel)…'}
                 </option>
                 {customers.map((c) => (
-                  <option key={c.id} value={c.id} className="text-black">{c.name}</option>
+                  <option key={c.id} value={c.id} className="text-black">{customerLabel(c)}</option>
                 ))}
                 <option value="__new__" className="text-black">+ Nouveau client…</option>
               </select>
             )}
             {newClientMode && (
-              <div className="flex gap-2">
-                <input
-                  className="input flex-1"
-                  placeholder="Nom du nouveau client"
-                  value={newClientName}
-                  onChange={(e) => setNewClientName(e.target.value)}
-                  autoFocus
-                />
-                <button
-                  className="btn-primary !px-4"
-                  onClick={async () => {
-                    const n = newClientName.trim();
-                    if (!n) return;
-                    const { data } = await supabase().from('customers').insert({ name: n }).select().single();
-                    if (data) {
-                      setCustomers([...customers, data as any].sort((a, b) => a.name.localeCompare(b.name)));
-                      setCustomerId((data as any).id);
-                    }
-                    setNewClientName('');
-                    setNewClientMode(false);
-                  }}
-                >
-                  Créer
-                </button>
+              <div className="glass !rounded-2xl p-3 space-y-2">
+                <p className="section-title !text-xs">Nouvelle fiche client</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input className="input !py-2" placeholder="Prénom" value={newClient.first_name} onChange={(e) => setNewClient({ ...newClient, first_name: e.target.value })} autoFocus />
+                  <input className="input !py-2" placeholder="Nom *" value={newClient.name} onChange={(e) => setNewClient({ ...newClient, name: e.target.value })} />
+                  <input className="input !py-2" placeholder="Téléphone" value={newClient.phone} onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })} />
+                  <input className="input !py-2" type="email" placeholder="Email" value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })} />
+                </div>
+                <input className="input !py-2" placeholder="Adresse" value={newClient.address} onChange={(e) => setNewClient({ ...newClient, address: e.target.value })} />
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="btn-glass !py-2" onClick={() => setNewClientMode(false)}>Annuler</button>
+                  <button
+                    className="btn-primary !py-2"
+                    onClick={async () => {
+                      const n = newClient.name.trim();
+                      if (!n) return;
+                      const { data } = await supabase()
+                        .from('customers')
+                        .insert({
+                          name: n,
+                          first_name: newClient.first_name.trim() || null,
+                          phone: newClient.phone.trim() || null,
+                          email: newClient.email.trim() || null,
+                          address: newClient.address.trim() || null,
+                        })
+                        .select()
+                        .single();
+                      if (data) {
+                        setCustomers([...customers, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+                        setCustomerId((data as any).id);
+                      }
+                      setNewClient({ name: '', first_name: '', phone: '', email: '', address: '' });
+                      setNewClientMode(false);
+                    }}
+                  >
+                    Créer la fiche
+                  </button>
+                </div>
               </div>
             )}
 

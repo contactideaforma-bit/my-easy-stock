@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDay } from '@/lib/utils';
 import { IconBack } from '@/components/Icons';
+import { customerLabel } from '@/lib/types';
 import type { Customer, Sale } from '@/lib/types';
 
 type Company = {
@@ -20,6 +21,9 @@ type Company = {
   iban: string | null;
   bic: string | null;
   invoice_footer: string | null;
+  logo_url: string | null;
+  invoice_color: string | null;
+  invoice_theme: 'classique' | 'moderne' | 'minimal' | null;
 };
 
 export default function FacturePage() {
@@ -31,7 +35,7 @@ export default function FacturePage() {
   const load = useCallback(async () => {
     const sb = supabase();
     const [{ data: s }, { data: c }, { data: cl }] = await Promise.all([
-      sb.from('sales').select('*, customers(name, phone), vendors(name), sale_items(*)').eq('id', id).single(),
+      sb.from('sales').select('*, customers(name, first_name, phone, email, address), vendors(name), sale_items(*)').eq('id', id).single(),
       sb.from('company_settings').select('*').eq('id', 1).maybeSingle(),
       sb.from('customers').select('*').order('name'),
     ]);
@@ -61,6 +65,9 @@ export default function FacturePage() {
   const year = new Date(sale.created_at).getFullYear();
   const invoiceNumber = `FAC-${year}-${String(sale.number).padStart(5, '0')}`;
   const methodLabel = sale.payment_method === 'especes' ? 'Espèces' : sale.payment_method === 'carte' ? 'Carte bancaire' : 'Crédit';
+  const color = company?.invoice_color || '#257ceb';
+  const theme = company?.invoice_theme || 'classique';
+  const cust = sale.customers as (Customer & { email?: string | null; address?: string | null }) | null;
 
   return (
     <div className="space-y-4 pb-8">
@@ -92,36 +99,56 @@ export default function FacturePage() {
 
       {/* ------- Document facture ------- */}
       <div className="bg-white text-black rounded-2xl p-6 shadow-lg print:shadow-none print:rounded-none print:p-0">
-        {/* En-tête */}
-        <div className="flex justify-between items-start pb-4 border-b-2" style={{ borderColor: '#257ceb' }}>
-          <div>
-            <p className="text-xl font-extrabold" style={{ color: '#1d65d8' }}>{company?.name || 'Ma Société'}</p>
-            {company?.legal_form && <p className="text-xs text-gray-600">{company.legal_form}</p>}
-            {company?.address && <p className="text-xs text-gray-600 whitespace-pre-line mt-1">{company.address}</p>}
-            <p className="text-xs text-gray-600 mt-1">
-              {[company?.phone, company?.email].filter(Boolean).join(' · ')}
-            </p>
-            {company?.siret && <p className="text-xs text-gray-600">SIRET : {company.siret}</p>}
-            {company?.vat_number && <p className="text-xs text-gray-600">TVA : {company.vat_number}</p>}
+        {/* En-tête (selon le thème choisi) */}
+        <div
+          className={`flex justify-between items-start pb-4 ${theme === 'classique' ? 'border-b-2' : ''} ${theme === 'minimal' ? 'border-b border-gray-200' : ''} ${theme === 'moderne' ? 'rounded-xl p-4 -mx-1' : ''}`}
+          style={theme === 'classique' ? { borderColor: color } : theme === 'moderne' ? { background: color } : undefined}
+        >
+          <div className="flex items-start gap-3">
+            {company?.logo_url && (
+              <div className={`w-14 h-14 rounded-lg overflow-hidden flex items-center justify-center shrink-0 ${theme === 'moderne' ? 'bg-white' : ''}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={company.logo_url} alt="Logo" className="w-full h-full object-contain" />
+              </div>
+            )}
+            <div className={theme === 'moderne' ? 'text-white' : ''}>
+              <p className="text-xl font-extrabold" style={theme === 'moderne' ? undefined : { color: theme === 'minimal' ? '#111827' : color }}>
+                {company?.name || 'Ma Société'}
+              </p>
+              {company?.legal_form && <p className={`text-xs ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>{company.legal_form}</p>}
+              {company?.address && <p className={`text-xs whitespace-pre-line mt-1 ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>{company.address}</p>}
+              <p className={`text-xs mt-1 ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>
+                {[company?.phone, company?.email].filter(Boolean).join(' · ')}
+              </p>
+              {company?.siret && <p className={`text-xs ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>SIRET : {company.siret}</p>}
+              {company?.vat_number && <p className={`text-xs ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>TVA : {company.vat_number}</p>}
+            </div>
           </div>
-          <div className="text-right">
+          <div className={`text-right ${theme === 'moderne' ? 'text-white' : ''}`}>
             <p className="text-lg font-bold uppercase tracking-wide">Facture</p>
             <p className="text-sm font-semibold">{invoiceNumber}</p>
-            <p className="text-xs text-gray-600 mt-1">Date : {fmtDay(sale.created_at)}</p>
-            {sale.vendors?.name && <p className="text-xs text-gray-600">Vendeur : {sale.vendors.name}</p>}
+            <p className={`text-xs mt-1 ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>Date : {fmtDay(sale.created_at)}</p>
+            {sale.vendors?.name && <p className={`text-xs ${theme === 'moderne' ? 'text-white/80' : 'text-gray-600'}`}>Vendeur : {sale.vendors.name}</p>}
           </div>
         </div>
 
         {/* Client */}
         <div className="py-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Facturé à</p>
-          <p className="font-semibold text-sm">{sale.customers?.name || 'Client de passage'}</p>
+          <p className="font-semibold text-sm">{cust ? customerLabel(cust) : 'Client de passage'}</p>
+          {cust?.address && <p className="text-xs text-gray-600 whitespace-pre-line">{cust.address}</p>}
+          {(cust?.phone || cust?.email) && (
+            <p className="text-xs text-gray-600">{[cust?.phone, cust?.email].filter(Boolean).join(' · ')}</p>
+          )}
         </div>
 
         {/* Lignes */}
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-xs text-gray-500 uppercase border-b border-gray-200">
+            <tr
+              className={`text-xs uppercase ${theme === 'moderne' ? '' : 'text-gray-500 border-b border-gray-200'}`}
+              style={theme === 'moderne' ? { background: `${color}18`, color } : undefined}
+            >
               <th className="text-left py-2 font-medium">Désignation</th>
               <th className="text-center py-2 font-medium">Qté</th>
               <th className="text-right py-2 font-medium">PU HT</th>
@@ -163,7 +190,7 @@ export default function FacturePage() {
               <span>{fmt(totalTVA)}</span>
             </div>
             <div className="flex justify-between font-bold text-base pt-1 border-t border-gray-300">
-              <span>Total TTC</span><span style={{ color: '#1d65d8' }}>{fmt(totalTTC)}</span>
+              <span>Total TTC</span><span style={{ color }}>{fmt(totalTTC)}</span>
             </div>
           </div>
         </div>

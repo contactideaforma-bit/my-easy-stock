@@ -26,7 +26,20 @@ export type Variant = {
 
 export type Category = { id: string; name: string };
 export type Supplier = { id: string; name: string; phone: string | null; email: string | null; notes: string | null };
-export type Customer = { id: string; name: string; phone: string | null; notes: string | null; created_at: string };
+export type Customer = {
+  id: string;
+  name: string;
+  first_name?: string | null;
+  phone: string | null;
+  email?: string | null;
+  address?: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+/** Nom complet affichable d'un client */
+export const customerLabel = (c: { name: string; first_name?: string | null }) =>
+  [c.first_name, c.name].filter(Boolean).join(' ');
 
 export type Sale = {
   id: string;
