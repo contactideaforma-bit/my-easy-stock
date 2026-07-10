@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { fmt, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
 import { IconScan, IconSearch, IconTrash, IconCheck } from '@/components/Icons';
-import type { CartLine, Customer, Product, Variant } from '@/lib/types';
+import type { CartLine, Customer, Product, Variant, Vendor } from '@/lib/types';
 
 type SearchHit = Product & { product_variants: Variant[] };
 
@@ -13,6 +13,9 @@ export default function CaissePage() {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [vendorId, setVendorId] = useState('');
+  const [vendorStock, setVendorStock] = useState<Record<string, number>>({});
   const [scanning, setScanning] = useState(false);
   const [paying, setPaying] = useState(false);
   const [method, setMethod] = useState<'especes' | 'carte' | 'credit'>('especes');
@@ -46,15 +49,42 @@ export default function CaissePage() {
   }, [q]);
 
   useEffect(() => {
-    supabase().from('customers').select('*').order('name').then(({ data }) => setCustomers(data || []));
+    const sb = supabase();
+    sb.from('customers').select('*').order('name').then(({ data }) => setCustomers(data || []));
+    sb.from('vendors').select('*').eq('active', true).order('name').then(({ data }) => setVendors((data as any) || []));
   }, []);
+
+  // Stock du vendeur sélectionné
+  useEffect(() => {
+    setCart([]);
+    setError('');
+    if (!vendorId) {
+      setVendorStock({});
+      return;
+    }
+    supabase()
+      .from('vendor_stock')
+      .select('variant_id,qty')
+      .eq('vendor_id', vendorId)
+      .then(({ data }) => {
+        const map: Record<string, number> = {};
+        (data || []).forEach((r: any) => (map[r.variant_id] = r.qty));
+        setVendorStock(map);
+      });
+  }, [vendorId]);
+
+  /** Stock disponible selon la source sélectionnée (dépôt ou vendeur) */
+  function stockOf(variant: Variant) {
+    return vendorId ? vendorStock[variant.id] || 0 : variant.stock;
+  }
 
   function addToCart(product: Product, variant: Variant) {
     setError('');
+    const dispo = stockOf(variant);
     setCart((prev) => {
       const i = prev.findIndex((l) => l.variant.id === variant.id);
       if (i >= 0) {
-        if (prev[i].qty + 1 > variant.stock) {
+        if (prev[i].qty + 1 > dispo) {
           setError(`Stock insuffisant : ${product.name} (${variantLabel(variant)})`);
           return prev;
         }
@@ -62,7 +92,7 @@ export default function CaissePage() {
         next[i] = { ...next[i], qty: next[i].qty + 1 };
         return next;
       }
-      if (variant.stock < 1) {
+      if (dispo < 1) {
         setError(`Épuisé : ${product.name} (${variantLabel(variant)})`);
         return prev;
       }
@@ -90,7 +120,7 @@ export default function CaissePage() {
     setCart((prev) =>
       qty <= 0
         ? prev.filter((l) => l.variant.id !== variantId)
-        : prev.map((l) => (l.variant.id === variantId ? { ...l, qty: Math.min(qty, l.variant.stock) } : l))
+        : prev.map((l) => (l.variant.id === variantId ? { ...l, qty: Math.min(qty, stockOf(l.variant)) } : l))
     );
   }
 
@@ -107,6 +137,7 @@ export default function CaissePage() {
       p_payment_method: method,
       p_customer_id: method === 'credit' ? customerId : null,
       p_paid_amount: method === 'credit' ? 0 : total,
+      p_vendor_id: vendorId || null,
     });
     setBusy(false);
     if (err) {
@@ -118,6 +149,12 @@ export default function CaissePage() {
     setPaying(false);
     setReceived('');
     setCustomerId('');
+    if (vendorId) {
+      const { data } = await supabase().from('vendor_stock').select('variant_id,qty').eq('vendor_id', vendorId);
+      const map: Record<string, number> = {};
+      (data || []).forEach((r: any) => (map[r.variant_id] = r.qty));
+      setVendorStock(map);
+    }
   }
 
   if (done)
@@ -128,11 +165,11 @@ export default function CaissePage() {
             style={{ background: 'linear-gradient(135deg,#34d399,#059669)' }}>
             <IconCheck className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Vente encaissée</h2>
-          <p className="text-crystal-200 text-lg mt-2">{fmt(done.total)}</p>
+          <h2 className="text-2xl font-bold text-ink">Vente encaissée</h2>
+          <p className="text-crystal-800 text-lg mt-2">{fmt(done.total)}</p>
           {done.change > 0 && (
-            <p className="text-crystal-300/80 mt-1">
-              Monnaie à rendre : <span className="font-bold text-white">{fmt(done.change)}</span>
+            <p className="text-crystal-700/80 mt-1">
+              Monnaie à rendre : <span className="font-bold text-ink">{fmt(done.change)}</span>
             </p>
           )}
           <button className="btn-primary w-full mt-6" onClick={() => setDone(null)}>
@@ -144,14 +181,31 @@ export default function CaissePage() {
 
   return (
     <div className="space-y-4 pb-40">
-      <header className="pt-2">
-        <h1 className="text-2xl font-bold text-white">Caisse</h1>
+      <header className="flex items-center justify-between gap-3 pt-2">
+        <h1 className="text-2xl font-bold text-ink">Caisse</h1>
+        <select
+          className="input !w-auto !py-2 !px-3 text-sm font-medium"
+          value={vendorId}
+          onChange={(e) => setVendorId(e.target.value)}
+          aria-label="Source du stock"
+        >
+          <option value="" className="text-black">🏬 Dépôt</option>
+          {vendors.map((v) => (
+            <option key={v.id} value={v.id} className="text-black">👤 {v.name}</option>
+          ))}
+        </select>
       </header>
+
+      {vendorId && (
+        <p className="text-xs text-crystal-700 -mt-2 px-1">
+          Vente sur le stock de <strong>{vendors.find((v) => v.id === vendorId)?.name}</strong> — son stock sera décrémenté.
+        </p>
+      )}
 
       {/* Recherche + scan */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-crystal-300/50" />
+          <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
           <input className="input pl-11" placeholder="Rechercher un article…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <button className="btn-primary !px-4" onClick={() => setScanning(true)} aria-label="Scanner">
@@ -164,48 +218,51 @@ export default function CaissePage() {
         <div className="glass p-3 space-y-3">
           {hits.map((p) => (
             <div key={p.id}>
-              <p className="text-sm font-semibold text-crystal-100 mb-1.5">
-                {p.name} <span className="text-crystal-300/60 font-normal">— {fmt(Number(p.sale_price))}</span>
+              <p className="text-sm font-semibold text-ink mb-1.5">
+                {p.name} <span className="text-ink/55 font-normal">— {fmt(Number(p.sale_price))}</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {p.product_variants.map((v) => (
-                  <button
-                    key={v.id}
-                    className={`chip ${v.stock === 0 ? 'opacity-40' : 'active:scale-95'}`}
-                    disabled={v.stock === 0}
-                    onClick={() => addToCart(p, v)}
-                  >
-                    {variantLabel(v)} ({v.stock})
-                  </button>
-                ))}
+                {p.product_variants.map((v) => {
+                  const dispo = stockOf(v);
+                  return (
+                    <button
+                      key={v.id}
+                      className={`chip ${dispo === 0 ? 'opacity-40' : 'active:scale-95'}`}
+                      disabled={dispo === 0}
+                      onClick={() => addToCart(p, v)}
+                    >
+                      {variantLabel(v)} ({dispo})
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {error && <p className="text-rose-300 text-sm px-1">{error}</p>}
+      {error && <p className="text-rose-600 text-sm px-1">{error}</p>}
 
       {/* Panier */}
       <section className="glass p-4">
         <h2 className="section-title mb-3">Panier</h2>
         {cart.length === 0 ? (
-          <p className="text-crystal-300/60 text-sm">Scannez ou recherchez un article pour commencer.</p>
+          <p className="text-ink/55 text-sm">Scannez ou recherchez un article pour commencer.</p>
         ) : (
           <ul className="space-y-3">
             {cart.map((l) => (
               <li key={l.variant.id} className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-crystal-100 truncate">{l.product.name}</p>
-                  <p className="text-xs text-crystal-300/60">
+                  <p className="text-sm font-medium text-ink truncate">{l.product.name}</p>
+                  <p className="text-xs text-ink/55">
                     {variantLabel(l.variant)} · {fmt(l.unit_price)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty - 1)}>−</button>
-                  <span className="w-7 text-center font-bold text-white">{l.qty}</span>
+                  <span className="w-7 text-center font-bold text-ink">{l.qty}</span>
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty + 1)}>+</button>
-                  <button className="text-rose-300/70 ml-1" onClick={() => setQty(l.variant.id, 0)}>
+                  <button className="text-rose-500/70 ml-1" onClick={() => setQty(l.variant.id, 0)}>
                     <IconTrash className="w-4 h-4" />
                   </button>
                 </div>
@@ -230,8 +287,8 @@ export default function CaissePage() {
         <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setPaying(false)}>
           <div className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">Paiement</h3>
-              <span className="text-2xl font-bold text-crystal-200">{fmt(total)}</span>
+              <h3 className="text-lg font-bold text-ink">Paiement</h3>
+              <span className="text-2xl font-bold text-crystal-800">{fmt(total)}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -257,8 +314,8 @@ export default function CaissePage() {
                   onChange={(e) => setReceived(e.target.value)}
                 />
                 {Number(received) >= total && total > 0 && (
-                  <p className="text-center text-crystal-200 mt-2">
-                    Monnaie à rendre : <span className="font-bold text-white">{fmt(change)}</span>
+                  <p className="text-center text-crystal-800 mt-2">
+                    Monnaie à rendre : <span className="font-bold text-ink">{fmt(change)}</span>
                   </p>
                 )}
               </div>
@@ -273,7 +330,7 @@ export default function CaissePage() {
               </select>
             )}
 
-            {error && <p className="text-rose-300 text-sm">{error}</p>}
+            {error && <p className="text-rose-600 text-sm">{error}</p>}
             <button className="btn-primary w-full py-4" onClick={checkout} disabled={busy}>
               {busy ? 'Traitement…' : 'Valider la vente'}
             </button>

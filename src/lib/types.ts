@@ -37,8 +37,25 @@ export type Sale = {
   payment_method: 'especes' | 'carte' | 'credit';
   paid_amount: number;
   created_at: string;
+  vendor_id?: string | null;
   customers?: { name: string } | null;
+  vendors?: { name: string } | null;
   sale_items?: SaleItem[];
+};
+
+export type Vendor = {
+  id: string;
+  name: string;
+  phone: string | null;
+  active: boolean;
+  created_at: string;
+};
+
+export type VendorStockLine = {
+  vendor_id: string;
+  variant_id: string;
+  qty: number;
+  product_variants?: Variant & { products?: { name: string; sale_price: number } };
 };
 
 export type SaleItem = {

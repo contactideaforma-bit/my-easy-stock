@@ -59,7 +59,7 @@ export default function ProduitDetailPage() {
   }
 
   if (!product)
-    return <div className="glass p-8 text-center text-crystal-300/60 animate-pulse mt-4">Chargement…</div>;
+    return <div className="glass p-8 text-center text-ink/55 animate-pulse mt-4">Chargement…</div>;
 
   const total = variants.reduce((s, v) => s + v.stock, 0);
   const margin = Number(product.sale_price) - Number(product.purchase_price);
@@ -68,7 +68,7 @@ export default function ProduitDetailPage() {
     <div className="space-y-4 pb-8">
       <header className="flex items-center gap-3 pt-2">
         <Link href="/produits" className="btn-glass !p-2"><IconBack /></Link>
-        <h1 className="text-xl font-bold text-white flex-1 leading-tight">{product.name}</h1>
+        <h1 className="text-xl font-bold text-ink flex-1 leading-tight">{product.name}</h1>
       </header>
 
       <div className="glass overflow-hidden">
@@ -88,11 +88,11 @@ export default function ProduitDetailPage() {
           {editPrice ? (
             <div className="flex items-end gap-2">
               <div className="flex-1">
-                <label className="text-crystal-300/60 text-xs">Prix achat</label>
+                <label className="text-ink/55 text-xs">Prix achat</label>
                 <input className="input !py-2" type="number" step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
               </div>
               <div className="flex-1">
-                <label className="text-crystal-300/60 text-xs">Prix vente</label>
+                <label className="text-ink/55 text-xs">Prix vente</label>
                 <input className="input !py-2" type="number" step="0.01" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
               </div>
               <button className="btn-primary !py-2" onClick={savePrices}>OK</button>
@@ -100,8 +100,8 @@ export default function ProduitDetailPage() {
           ) : (
             <button className="w-full text-left" onClick={() => setEditPrice(true)}>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-bold text-white">{fmt(Number(product.sale_price))}</span>
-                <span className="text-crystal-300/60 text-sm">
+                <span className="text-2xl font-bold text-ink">{fmt(Number(product.sale_price))}</span>
+                <span className="text-ink/55 text-sm">
                   marge {fmt(margin)} · <span className="underline">modifier</span>
                 </span>
               </div>
@@ -117,12 +117,12 @@ export default function ProduitDetailPage() {
           {variants.map((v) => (
             <li key={v.id} className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-crystal-100 text-sm font-medium">{variantLabel(v)}</p>
-                <p className="text-crystal-300/50 text-xs truncate">{v.sku}</p>
+                <p className="text-ink text-sm font-medium">{variantLabel(v)}</p>
+                <p className="text-ink/45 text-xs truncate">{v.sku}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id || v.stock === 0} onClick={() => adjust(v.id, -1)}>−</button>
-                <span className={`w-10 text-center font-bold ${v.stock === 0 ? 'text-rose-300' : 'text-white'}`}>{v.stock}</span>
+                <span className={`w-10 text-center font-bold ${v.stock === 0 ? 'text-rose-600' : 'text-ink'}`}>{v.stock}</span>
                 <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id} onClick={() => adjust(v.id, 1)}>+</button>
               </div>
             </li>
@@ -134,7 +134,7 @@ export default function ProduitDetailPage() {
         <Link href={`/produits/${id}/etiquettes`} className="btn-glass">
           <IconTag /> Étiquettes
         </Link>
-        <button className="btn-glass !text-rose-300" onClick={archive}>
+        <button className="btn-glass !text-rose-600" onClick={archive}>
           <IconTrash /> Archiver
         </button>
       </div>

@@ -82,8 +82,8 @@ export default function ClientsPage() {
       <header className="flex items-center gap-3 pt-2">
         <Link href="/plus" className="btn-glass !p-2"><IconBack /></Link>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-white">Clients</h1>
-          {totalDue > 0 && <p className="text-xs text-orange-200/80">Crédit en cours : {fmt(totalDue)}</p>}
+          <h1 className="text-xl font-bold text-ink">Clients</h1>
+          {totalDue > 0 && <p className="text-xs text-orange-700/90">Crédit en cours : {fmt(totalDue)}</p>}
         </div>
         <button className="btn-primary !py-2 !px-3 text-sm" onClick={() => setAdding(!adding)}>
           <IconPlus className="w-4 h-4" /> Client
@@ -99,14 +99,14 @@ export default function ClientsPage() {
       )}
 
       {rows.length === 0 ? (
-        <div className="glass p-8 text-center text-crystal-300/60">Aucun client enregistré.</div>
+        <div className="glass p-8 text-center text-ink/55">Aucun client enregistré.</div>
       ) : (
         <div className="glass p-2">
           {rows.map((c) => (
             <button key={c.id} className="w-full flex items-center justify-between p-3 text-left" onClick={() => openCustomer(c)}>
               <div>
-                <p className="text-crystal-100 font-medium text-sm">{c.name}</p>
-                {c.phone && <p className="text-crystal-300/50 text-xs">{c.phone}</p>}
+                <p className="text-ink font-medium text-sm">{c.name}</p>
+                {c.phone && <p className="text-ink/45 text-xs">{c.phone}</p>}
               </div>
               {c.due > 0 ? <span className="chip chip-warn">doit {fmt(c.due)}</span> : <span className="chip chip-ok">à jour</span>}
             </button>
@@ -119,8 +119,8 @@ export default function ClientsPage() {
         <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setSelected(null)}>
           <div className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[85dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div>
-              <h3 className="text-lg font-bold text-white">{selected.name}</h3>
-              <p className={selected.due > 0 ? 'text-orange-200' : 'text-emerald-200'}>
+              <h3 className="text-lg font-bold text-ink">{selected.name}</h3>
+              <p className={selected.due > 0 ? 'text-orange-700' : 'text-emerald-700'}>
                 {selected.due > 0 ? `Crédit en cours : ${fmt(selected.due)}` : 'Compte à jour ✓'}
               </p>
             </div>
@@ -142,15 +142,15 @@ export default function ClientsPage() {
             <div>
               <h4 className="section-title mb-2">Historique</h4>
               {history.length === 0 ? (
-                <p className="text-crystal-300/60 text-sm">Aucune opération.</p>
+                <p className="text-ink/55 text-sm">Aucune opération.</p>
               ) : (
                 <ul className="space-y-2">
                   {history.map((h, i) => (
                     <li key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-crystal-100">
-                        {h.label} <span className="text-crystal-300/50">· {fmtDay(h.date)}</span>
+                      <span className="text-ink">
+                        {h.label} <span className="text-ink/45">· {fmtDay(h.date)}</span>
                       </span>
-                      <span className={h.type === 'reglement' ? 'text-emerald-300' : 'text-white'}>
+                      <span className={h.type === 'reglement' ? 'text-emerald-600' : 'text-ink'}>
                         {h.type === 'reglement' ? '−' : ''}{fmt(h.amount)}
                       </span>
                     </li>

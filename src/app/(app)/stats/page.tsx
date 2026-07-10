@@ -70,33 +70,33 @@ export default function StatsPage() {
     <div className="space-y-4 pb-8">
       <header className="flex items-center gap-3 pt-2">
         <Link href="/plus" className="btn-glass !p-2"><IconBack /></Link>
-        <h1 className="text-xl font-bold text-white flex-1">Statistiques</h1>
+        <h1 className="text-xl font-bold text-ink flex-1">Statistiques</h1>
       </header>
 
       <div className="glass p-1 grid grid-cols-3 gap-1">
         {PERIODS.map((p) => (
-          <button key={p.key} className={period === p.key ? 'btn-primary !py-2 text-sm' : 'btn !py-2 text-sm text-crystal-300/70'} onClick={() => setPeriod(p.key)}>
+          <button key={p.key} className={period === p.key ? 'btn-primary !py-2 text-sm' : 'btn !py-2 text-sm text-ink/60'} onClick={() => setPeriod(p.key)}>
             {p.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="glass p-8 text-center text-crystal-300/60 animate-pulse">Chargement…</div>
+        <div className="glass p-8 text-center text-ink/55 animate-pulse">Chargement…</div>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-3">
             <div className="glass p-3">
-              <p className="text-crystal-300/60 text-[11px]">Chiffre d&apos;aff.</p>
-              <p className="text-lg font-bold text-white mt-0.5">{fmt(stats.ca)}</p>
+              <p className="text-ink/55 text-[11px]">Chiffre d&apos;aff.</p>
+              <p className="text-lg font-bold text-ink mt-0.5">{fmt(stats.ca)}</p>
             </div>
             <div className="glass p-3">
-              <p className="text-crystal-300/60 text-[11px]">Marge brute</p>
-              <p className="text-lg font-bold text-emerald-300 mt-0.5">{fmt(stats.marge)}</p>
+              <p className="text-ink/55 text-[11px]">Marge brute</p>
+              <p className="text-lg font-bold text-emerald-600 mt-0.5">{fmt(stats.marge)}</p>
             </div>
             <div className="glass p-3">
-              <p className="text-crystal-300/60 text-[11px]">Ventes</p>
-              <p className="text-lg font-bold text-white mt-0.5">{stats.count}</p>
+              <p className="text-ink/55 text-[11px]">Ventes</p>
+              <p className="text-lg font-bold text-ink mt-0.5">{stats.count}</p>
             </div>
           </div>
 
@@ -110,13 +110,13 @@ export default function StatsPage() {
                     className="w-full rounded-t-sm transition-all"
                     style={{
                       height: `${Math.max(2, (d.ca / maxCa) * 100)}%`,
-                      background: d.ca > 0 ? 'linear-gradient(180deg,#60b8fa,#1d65d8)' : 'rgba(255,255,255,0.06)',
+                      background: d.ca > 0 ? 'linear-gradient(180deg,#60b8fa,#1d65d8)' : 'rgba(13,43,78,0.08)',
                     }}
                   />
                 </div>
               ))}
             </div>
-            <div className="flex justify-between text-[10px] text-crystal-300/50 mt-2">
+            <div className="flex justify-between text-[10px] text-ink/45 mt-2">
               <span>{new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' }).format(daysAgo(period - 1))}</span>
               <span>Aujourd&apos;hui</span>
             </div>
@@ -126,16 +126,16 @@ export default function StatsPage() {
           <section className="glass p-4">
             <h2 className="section-title mb-3">Top produits</h2>
             {stats.top.length === 0 ? (
-              <p className="text-crystal-300/60 text-sm">Pas encore de ventes sur cette période.</p>
+              <p className="text-ink/55 text-sm">Pas encore de ventes sur cette période.</p>
             ) : (
               <ul className="space-y-2">
                 {stats.top.map(([name, v], i) => (
                   <li key={name} className="flex items-center justify-between text-sm">
-                    <span className="text-crystal-100">
-                      <span className="text-crystal-300/50 mr-2">{i + 1}.</span>
-                      {name} <span className="text-crystal-300/60">× {v.qty}</span>
+                    <span className="text-ink">
+                      <span className="text-ink/45 mr-2">{i + 1}.</span>
+                      {name} <span className="text-ink/55">× {v.qty}</span>
                     </span>
-                    <span className="font-semibold text-white">{fmt(v.ca)}</span>
+                    <span className="font-semibold text-ink">{fmt(v.ca)}</span>
                   </li>
                 ))}
               </ul>

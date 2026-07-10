@@ -48,8 +48,8 @@ export default function LoginPage() {
           >
             📦
           </div>
-          <h1 className="text-2xl font-bold text-white">My Easy Stock</h1>
-          <p className="text-crystal-300/70 text-sm mt-1">Votre stock, en toute clarté.</p>
+          <h1 className="text-2xl font-bold text-ink">My Easy Stock</h1>
+          <p className="text-ink/60 text-sm mt-1">Votre stock, en toute clarté.</p>
         </div>
 
         <form onSubmit={submit} className="space-y-3">
@@ -58,14 +58,14 @@ export default function LoginPage() {
           )}
           <input className="input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <input className="input" type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
-          {error && <p className="text-rose-300 text-sm">{error}</p>}
+          {error && <p className="text-rose-600 text-sm">{error}</p>}
           <button className="btn-primary w-full" disabled={loading}>
             {loading ? '…' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
           </button>
         </form>
 
         <button
-          className="w-full text-center text-crystal-300/70 text-sm mt-5"
+          className="w-full text-center text-ink/60 text-sm mt-5"
           onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
         >
           {mode === 'login' ? 'Premier accès ? Créer un compte' : 'Déjà un compte ? Se connecter'}

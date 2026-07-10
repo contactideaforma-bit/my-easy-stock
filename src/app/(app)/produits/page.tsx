@@ -35,21 +35,21 @@ export default function ProduitsPage() {
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between pt-2">
-        <h1 className="text-2xl font-bold text-white">Produits</h1>
+        <h1 className="text-2xl font-bold text-ink">Produits</h1>
         <Link href="/produits/nouveau" className="btn-primary !py-2 !px-3 text-sm">
           <IconPlus className="w-4 h-4" /> Nouveau
         </Link>
       </header>
 
       <div className="relative">
-        <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-crystal-300/50" />
+        <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
         <input className="input pl-11" placeholder="Rechercher un produit, une marque…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {loading ? (
-        <div className="glass p-8 text-center text-crystal-300/60 animate-pulse">Chargement…</div>
+        <div className="glass p-8 text-center text-ink/55 animate-pulse">Chargement…</div>
       ) : filtered.length === 0 ? (
-        <div className="glass p-8 text-center text-crystal-300/60">
+        <div className="glass p-8 text-center text-ink/55">
           {q ? 'Aucun résultat.' : 'Aucun produit. Ajoutez votre premier article !'}
         </div>
       ) : (
@@ -68,10 +68,10 @@ export default function ProduitsPage() {
                   )}
                 </div>
                 <div className="p-3">
-                  <p className="font-semibold text-white text-sm leading-tight line-clamp-2">{p.name}</p>
-                  {p.brand && <p className="text-crystal-300/60 text-xs mt-0.5">{p.brand}</p>}
+                  <p className="font-semibold text-ink text-sm leading-tight line-clamp-2">{p.name}</p>
+                  {p.brand && <p className="text-ink/55 text-xs mt-0.5">{p.brand}</p>}
                   <div className="flex items-center justify-between mt-2">
-                    <span className="font-bold text-crystal-200">{fmt(Number(p.sale_price))}</span>
+                    <span className="font-bold text-crystal-800">{fmt(Number(p.sale_price))}</span>
                     <span className={`chip ${total === 0 ? 'chip-danger' : low ? 'chip-warn' : ''}`}>{total}</span>
                   </div>
                 </div>

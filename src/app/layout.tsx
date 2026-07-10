@@ -5,11 +5,11 @@ export const metadata: Metadata = {
   title: 'My Easy Stock',
   description: 'Gestion de stock textile & chaussures — simple, mobile, indispensable.',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'My Easy Stock' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'My Easy Stock' },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0a1930',
+  themeColor: '#e8f4fd',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

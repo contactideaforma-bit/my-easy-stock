@@ -2,13 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- Thème Liquid Glass — bleu cristallin ---------- */
+/* ---------- Thème clair « reflets d'eau » — bleu cristallin léger ---------- */
 
 :root {
-  --bg-deep: #0a1930;
-  --glass-bg: rgba(255, 255, 255, 0.08);
-  --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-strong: rgba(255, 255, 255, 0.14);
+  --ink: #0d2b4e;
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(13, 43, 78, 0.09);
+  --glass-strong: rgba(255, 255, 255, 0.72);
 }
 
 html {
@@ -17,17 +17,18 @@ html {
 
 body {
   min-height: 100dvh;
-  color: #eaf4ff;
-  background-color: var(--bg-deep);
+  color: var(--ink);
+  background-color: #e8f4fd;
   background-image:
-    radial-gradient(60rem 40rem at 110% -10%, rgba(59, 154, 246, 0.35), transparent 60%),
-    radial-gradient(50rem 35rem at -20% 30%, rgba(37, 124, 235, 0.28), transparent 55%),
-    radial-gradient(45rem 45rem at 50% 120%, rgba(96, 184, 250, 0.22), transparent 60%);
+    radial-gradient(50rem 32rem at 88% -8%, rgba(96, 184, 250, 0.28), transparent 60%),
+    radial-gradient(42rem 30rem at -12% 22%, rgba(59, 154, 246, 0.16), transparent 55%),
+    radial-gradient(55rem 42rem at 50% 118%, rgba(191, 227, 254, 0.55), transparent 62%),
+    linear-gradient(180deg, #f2f9fe 0%, #e8f4fd 45%, #ddeffc 100%);
   background-attachment: fixed;
   font-feature-settings: 'tnum';
 }
 
-/* Bulles liquides animées en fond */
+/* Reflets d'eau : ondulations lumineuses + reflets qui dérivent */
 .liquid-bg {
   position: fixed;
   inset: 0;
@@ -35,31 +36,37 @@ body {
   overflow: hidden;
   pointer-events: none;
 }
-.liquid-bg::before,
+.liquid-bg::before {
+  content: '';
+  position: absolute;
+  width: 46rem;
+  height: 46rem;
+  border-radius: 50%;
+  filter: blur(80px);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85), rgba(147, 210, 253, 0.35) 55%, transparent 75%);
+  top: -16rem;
+  right: -12rem;
+  opacity: 0.8;
+  animation: drift 28s ease-in-out infinite alternate;
+}
 .liquid-bg::after {
   content: '';
   position: absolute;
-  width: 42rem;
-  height: 42rem;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  animation: drift 26s ease-in-out infinite alternate;
-}
-.liquid-bg::before {
-  background: radial-gradient(circle, rgba(96, 184, 250, 0.5), transparent 70%);
-  top: -14rem;
-  right: -10rem;
-}
-.liquid-bg::after {
-  background: radial-gradient(circle, rgba(29, 101, 216, 0.45), transparent 70%);
-  bottom: -16rem;
-  left: -12rem;
-  animation-delay: -13s;
+  inset: -20%;
+  opacity: 0.35;
+  background:
+    repeating-radial-gradient(ellipse 110rem 46rem at 18% 8%, rgba(255, 255, 255, 0.7) 0 2px, transparent 2px 110px),
+    repeating-radial-gradient(ellipse 90rem 40rem at 85% 70%, rgba(255, 255, 255, 0.55) 0 2px, transparent 2px 130px),
+    repeating-radial-gradient(ellipse 70rem 34rem at 40% 110%, rgba(147, 210, 253, 0.5) 0 1.5px, transparent 1.5px 90px);
+  animation: shimmer 22s ease-in-out infinite alternate;
 }
 @keyframes drift {
   from { transform: translate(0, 0) scale(1); }
-  to { transform: translate(3rem, 4rem) scale(1.15); }
+  to { transform: translate(3rem, 4rem) scale(1.12); }
+}
+@keyframes shimmer {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-2.5rem, 1.8rem); }
 }
 
 /* ---------- Composants verre ---------- */
@@ -70,16 +77,16 @@ body {
   border-radius: 1.5rem;
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
-  box-shadow: 0 8px 32px rgba(10, 25, 48, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 28px rgba(29, 101, 216, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .glass-strong {
   background: var(--glass-strong);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(13, 43, 78, 0.1);
   border-radius: 1.5rem;
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  box-shadow: 0 8px 32px rgba(10, 25, 48, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 36px rgba(29, 101, 216, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 @layer components {
@@ -88,11 +95,12 @@ body {
   }
   .btn-primary {
     @apply btn text-white;
-    background: linear-gradient(135deg, #3b9af6, #1d65d8);
-    box-shadow: 0 6px 20px rgba(59, 154, 246, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    background: linear-gradient(135deg, #60b8fa, #257ceb);
+    box-shadow: 0 6px 18px rgba(59, 154, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
   .btn-glass {
-    @apply btn text-crystal-100;
+    @apply btn;
+    color: var(--ink);
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(12px);
@@ -104,57 +112,63 @@ body {
   }
 
   .input {
-    @apply w-full rounded-2xl px-4 py-3 text-crystal-50 placeholder-crystal-300/50 outline-none transition;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    @apply w-full rounded-2xl px-4 py-3 outline-none transition;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(13, 43, 78, 0.12);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
+  .input::placeholder {
+    color: rgba(13, 43, 78, 0.38);
+  }
   .input:focus {
-    border-color: rgba(96, 184, 250, 0.65);
-    box-shadow: 0 0 0 3px rgba(59, 154, 246, 0.25);
+    border-color: rgba(59, 154, 246, 0.55);
+    box-shadow: 0 0 0 3px rgba(96, 184, 250, 0.25);
+    background: rgba(255, 255, 255, 0.9);
   }
 
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium;
     background: rgba(96, 184, 250, 0.16);
-    border: 1px solid rgba(96, 184, 250, 0.3);
-    color: #bfe3fe;
+    border: 1px solid rgba(59, 154, 246, 0.3);
+    color: #1d65d8;
   }
 
   .section-title {
-    @apply text-sm font-semibold uppercase tracking-widest text-crystal-300/80;
+    @apply text-sm font-semibold uppercase tracking-widest;
+    color: rgba(13, 43, 78, 0.55);
   }
 }
 
 .chip-warn {
-  background: rgba(251, 146, 60, 0.16);
-  border-color: rgba(251, 146, 60, 0.35);
-  color: #fed7aa;
+  background: rgba(251, 146, 60, 0.14);
+  border-color: rgba(234, 88, 12, 0.3);
+  color: #c2410c;
 }
 .chip-ok {
   background: rgba(52, 211, 153, 0.14);
-  border-color: rgba(52, 211, 153, 0.3);
-  color: #a7f3d0;
+  border-color: rgba(5, 150, 105, 0.3);
+  color: #047857;
 }
 .chip-danger {
-  background: rgba(244, 63, 94, 0.16);
-  border-color: rgba(244, 63, 94, 0.35);
-  color: #fecdd3;
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(190, 18, 60, 0.3);
+  color: #be123c;
 }
 
 /* Nav bas flottante */
 .bottom-nav {
-  background: rgba(15, 34, 62, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(13, 43, 78, 0.08);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  box-shadow: 0 -4px 30px rgba(10, 25, 48, 0.5);
+  box-shadow: 0 -4px 26px rgba(29, 101, 216, 0.12);
 }
 
 /* Scrollbar discrète */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(13, 43, 78, 0.18); border-radius: 3px; }
 
 /* Impression étiquettes */
 @media print {

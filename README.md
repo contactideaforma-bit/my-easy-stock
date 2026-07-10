@@ -1,25 +1,26 @@
 # My Easy Stock 💎
 
-Gestion de stock **textile & chaussures** pour grossiste — mobile-first, thème *liquid glass* bleu cristallin.
+Gestion de stock **textile & chaussures** pour grossiste — mobile-first, thème clair translucide « reflets d'eau », bleu cristallin léger.
 
 ## Fonctionnalités
 
 - **Catalogue** : produits avec photo, marque, catégorie, déclinaisons taille × couleur générées automatiquement
 - **Code-barres** : EAN-13 généré pour chaque variante, étiquettes imprimables, scan caméra mobile
-- **Caisse** : scan ou recherche, panier, espèces (calcul de monnaie) / carte / crédit client
+- **Vendeurs & lots en dépôt** : création de vendeurs, remise de lots (le stock passe du dépôt au vendeur), reprise de marchandise, vue « qui détient quoi »
+- **Caisse** : vente sur le stock du dépôt **ou** d'un vendeur, scan ou recherche, espèces (calcul de monnaie) / carte / crédit client
+- **Tableau de bord** : ventes du mois (nombre + montant), classement par vendeur, stock dépôt / chez les vendeurs, alertes stock bas
 - **Inventaire** : session de comptage par scan, calcul des écarts, correction automatique du stock
 - **Clients** : ardoise crédit, règlements, historique
 - **Fournisseurs** : commandes d'achat, réception = entrée en stock
 - **Stats** : CA, marge brute, graphique journalier, top produits
 - **Multi-utilisateurs** : rôles admin / vendeur (1er compte créé = admin)
-- **Alertes stock bas** sur le tableau de bord
 - Installable sur l'écran d'accueil du téléphone (PWA)
 
 ## Installation
 
 ### 1. Supabase
 1. Créer un projet sur [supabase.com](https://supabase.com)
-2. **SQL Editor → New query** : coller tout le contenu de `supabase/migrations/001_init.sql` → **Run**
+2. **SQL Editor → New query** : coller tout le contenu de `supabase/migrations/001_init.sql` → **Run**, puis faire de même avec `supabase/migrations/002_vendeurs.sql`
 3. **Authentication → Providers → Email** : désactiver *Confirm email* (connexion immédiate)
 4. **Settings → API** : copier `Project URL` et `anon public key`
 

@@ -108,7 +108,7 @@ export default function NouveauProduitPage() {
     <div className="space-y-4 pb-8">
       <header className="flex items-center gap-3 pt-2">
         <Link href="/produits" className="btn-glass !p-2"><IconBack /></Link>
-        <h1 className="text-xl font-bold text-white">Nouveau produit</h1>
+        <h1 className="text-xl font-bold text-ink">Nouveau produit</h1>
       </header>
 
       {/* Photo */}
@@ -122,8 +122,8 @@ export default function NouveauProduitPage() {
           )}
         </div>
         <div>
-          <p className="font-semibold text-crystal-100">Photo du produit</p>
-          <p className="text-crystal-300/60 text-xs">Prendre une photo ou choisir une image</p>
+          <p className="font-semibold text-ink">Photo du produit</p>
+          <p className="text-ink/55 text-xs">Prendre une photo ou choisir une image</p>
         </div>
         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0] || null)} />
       </label>
@@ -141,15 +141,15 @@ export default function NouveauProduitPage() {
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-crystal-300/60 text-xs pl-1">Prix achat</label>
+            <label className="text-ink/55 text-xs pl-1">Prix achat</label>
             <input className="input" type="number" step="0.01" inputMode="decimal" placeholder="0" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
           </div>
           <div>
-            <label className="text-crystal-300/60 text-xs pl-1">Prix vente *</label>
+            <label className="text-ink/55 text-xs pl-1">Prix vente *</label>
             <input className="input" type="number" step="0.01" inputMode="decimal" placeholder="0" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
           </div>
           <div>
-            <label className="text-crystal-300/60 text-xs pl-1">Alerte stock</label>
+            <label className="text-ink/55 text-xs pl-1">Alerte stock</label>
             <input className="input" type="number" inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </div>
         </div>
@@ -162,13 +162,13 @@ export default function NouveauProduitPage() {
         <input className="input" placeholder="Couleurs — ex : Noir, Blanc, Bleu" value={colors} onChange={(e) => setColors(e.target.value)} />
 
         <div className="space-y-2 pt-1">
-          <p className="text-crystal-300/60 text-xs">
+          <p className="text-ink/55 text-xs">
             {matrix.length} variante{matrix.length > 1 ? 's' : ''} — saisissez le stock initial :
           </p>
           <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
             {matrix.map((m) => (
               <div key={m.key} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-crystal-100">
+                <span className="text-sm text-ink">
                   {[m.size, m.color].filter(Boolean).join(' · ') || 'Article standard'}
                 </span>
                 <input
@@ -183,12 +183,12 @@ export default function NouveauProduitPage() {
             ))}
           </div>
         </div>
-        <p className="text-crystal-300/50 text-xs">
+        <p className="text-ink/45 text-xs">
           Un code-barres EAN-13 et une référence sont générés automatiquement pour chaque variante — imprimables en étiquettes.
         </p>
       </div>
 
-      {error && <p className="text-rose-300 text-sm px-1">{error}</p>}
+      {error && <p className="text-rose-600 text-sm px-1">{error}</p>}
       <button className="btn-primary w-full py-4" onClick={save} disabled={saving}>
         {saving ? 'Enregistrement…' : 'Créer le produit'}
       </button>

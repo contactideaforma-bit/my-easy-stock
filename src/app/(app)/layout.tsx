@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { IconHome, IconBox, IconCash, IconClipboard, IconDots } from '@/components/Icons';
+import { IconHome, IconBox, IconCash, IconUsers, IconDots } from '@/components/Icons';
 
 const tabs: { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; big?: boolean }[] = [
   { href: '/', label: 'Accueil', icon: IconHome },
   { href: '/produits', label: 'Produits', icon: IconBox },
   { href: '/caisse', label: 'Caisse', icon: IconCash, big: true },
-  { href: '/inventaire', label: 'Inventaire', icon: IconClipboard },
+  { href: '/vendeurs', label: 'Vendeurs', icon: IconUsers },
   { href: '/plus', label: 'Plus', icon: IconDots },
 ];
 
@@ -35,7 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (!ready)
     return (
       <div className="min-h-dvh flex items-center justify-center">
-        <div className="glass px-8 py-6 animate-pulse text-crystal-200">Chargement…</div>
+        <div className="glass px-8 py-6 animate-pulse text-crystal-800">Chargement…</div>
       </div>
     );
 
@@ -61,15 +61,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 >
                   <Icon className="w-7 h-7" />
                 </span>
-                <span className={`text-[10px] mt-1 ${active ? 'text-crystal-200' : 'text-crystal-300/60'}`}>
+                <span className={`text-[10px] mt-1 ${active ? 'text-crystal-800' : 'text-ink/55'}`}>
                   {t.label}
                 </span>
               </Link>
             );
           return (
             <Link key={t.href} href={t.href} className="flex-1 flex flex-col items-center gap-0.5 py-1">
-              <Icon className={`w-6 h-6 ${active ? 'text-crystal-300' : 'text-crystal-300/50'}`} />
-              <span className={`text-[10px] ${active ? 'text-crystal-200' : 'text-crystal-300/50'}`}>{t.label}</span>
+              <Icon className={`w-6 h-6 ${active ? 'text-crystal-600' : 'text-ink/45'}`} />
+              <span className={`text-[10px] ${active ? 'text-crystal-800' : 'text-ink/45'}`}>{t.label}</span>
             </Link>
           );
         })}

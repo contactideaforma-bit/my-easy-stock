@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { IconUsers, IconTruck, IconChart, IconLogout } from '@/components/Icons';
+import { IconUsers, IconTruck, IconChart, IconLogout, IconClipboard } from '@/components/Icons';
 import type { Profile } from '@/lib/types';
 
 export default function PlusPage() {
@@ -37,6 +37,7 @@ export default function PlusPage() {
   }
 
   const items = [
+    { href: '/inventaire', label: 'Inventaire', desc: 'Comptage par scan, écarts, correction du stock', icon: IconClipboard },
     { href: '/clients', label: 'Clients & crédit', desc: 'Fiches clients, ardoises, règlements', icon: IconUsers },
     { href: '/fournisseurs', label: 'Fournisseurs & achats', desc: 'Commandes, réceptions de stock', icon: IconTruck },
     { href: '/stats', label: 'Statistiques', desc: 'Chiffre d’affaires, marges, top ventes', icon: IconChart },
@@ -45,9 +46,9 @@ export default function PlusPage() {
   return (
     <div className="space-y-4 pb-8">
       <header className="pt-2">
-        <h1 className="text-2xl font-bold text-white">Plus</h1>
+        <h1 className="text-2xl font-bold text-ink">Plus</h1>
         {profile && (
-          <p className="text-crystal-300/60 text-sm">
+          <p className="text-ink/55 text-sm">
             {profile.full_name} · <span className="chip !text-[10px]">{profile.role}</span>
           </p>
         )}
@@ -63,8 +64,8 @@ export default function PlusPage() {
               <it.icon />
             </span>
             <div>
-              <p className="font-semibold text-white">{it.label}</p>
-              <p className="text-crystal-300/60 text-xs">{it.desc}</p>
+              <p className="font-semibold text-ink">{it.label}</p>
+              <p className="text-ink/55 text-xs">{it.desc}</p>
             </div>
           </Link>
         ))}
@@ -76,7 +77,7 @@ export default function PlusPage() {
           <ul className="space-y-2">
             {team.map((m) => (
               <li key={m.id} className="flex items-center justify-between text-sm">
-                <span className="text-crystal-100">{m.full_name || '—'}</span>
+                <span className="text-ink">{m.full_name || '—'}</span>
                 {m.id === profile.id ? (
                   <span className="chip">vous · {m.role}</span>
                 ) : (
@@ -92,13 +93,13 @@ export default function PlusPage() {
               </li>
             ))}
           </ul>
-          <p className="text-crystal-300/50 text-xs mt-3">
+          <p className="text-ink/45 text-xs mt-3">
             Pour ajouter un vendeur : il crée son compte depuis l&apos;écran de connexion, puis vous gérez son rôle ici.
           </p>
         </section>
       )}
 
-      <button className="btn-glass w-full !text-rose-300" onClick={logout}>
+      <button className="btn-glass w-full !text-rose-600" onClick={logout}>
         <IconLogout /> Se déconnecter
       </button>
     </div>

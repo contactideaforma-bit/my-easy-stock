@@ -38,16 +38,16 @@ export default function EtiquettesPage() {
     });
   }, [variants]);
 
-  if (!product) return <div className="glass p-8 text-center text-crystal-300/60 animate-pulse mt-4">Chargement…</div>;
+  if (!product) return <div className="glass p-8 text-center text-ink/55 animate-pulse mt-4">Chargement…</div>;
 
   return (
     <div className="space-y-4 pb-8">
       <header className="flex items-center gap-3 pt-2 no-print">
         <Link href={`/produits/${id}`} className="btn-glass !p-2"><IconBack /></Link>
-        <h1 className="text-xl font-bold text-white flex-1">Étiquettes</h1>
+        <h1 className="text-xl font-bold text-ink flex-1">Étiquettes</h1>
         <button className="btn-primary !py-2 !px-4 text-sm" onClick={() => window.print()}>Imprimer</button>
       </header>
-      <p className="text-crystal-300/60 text-sm no-print">
+      <p className="text-ink/55 text-sm no-print">
         Imprimez puis collez les étiquettes sur vos articles — elles seront scannables en caisse et à l&apos;inventaire.
       </p>
 
