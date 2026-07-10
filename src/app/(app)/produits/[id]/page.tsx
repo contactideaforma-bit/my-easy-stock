@@ -4,15 +4,34 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, variantLabel } from '@/lib/utils';
+import { fmt, fmtDate, variantLabel } from '@/lib/utils';
 import { IconBack, IconTag, IconTrash } from '@/components/Icons';
 import type { Product, Variant } from '@/lib/types';
+
+type Movement = {
+  id: string;
+  qty_change: number;
+  reason: string;
+  created_at: string;
+  product_variants: { size: string | null; color: string | null } | null;
+};
+
+const REASON_LABELS: Record<string, string> = {
+  vente: 'Vente',
+  achat: 'Réception achat',
+  inventaire: 'Inventaire',
+  ajustement: 'Ajustement',
+  retour: 'Retour / annulation',
+  affectation: 'Lot → vendeur',
+  retour_vendeur: 'Retour vendeur',
+};
 
 export default function ProduitDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [movements, setMovements] = useState<Movement[]>([]);
   const [editPrice, setEditPrice] = useState(false);
   const [salePrice, setSalePrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
@@ -29,6 +48,16 @@ export default function ProduitDetailPage() {
     if (p) {
       setSalePrice(String(p.sale_price));
       setPurchasePrice(String(p.purchase_price));
+    }
+    const ids = ((vs as any) || []).map((v: Variant) => v.id);
+    if (ids.length) {
+      const { data: mv } = await sb
+        .from('stock_movements')
+        .select('id,qty_change,reason,created_at,product_variants(size,color)')
+        .in('variant_id', ids)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      setMovements((mv as any) || []);
     }
   }, [id]);
 
@@ -128,6 +157,34 @@ export default function ProduitDetailPage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      {/* Historique des mouvements (stock dépôt) */}
+      <section className="glass p-4">
+        <h2 className="section-title mb-3">Historique du stock dépôt</h2>
+        {movements.length === 0 ? (
+          <p className="text-ink/55 text-sm">Aucun mouvement pour l&apos;instant.</p>
+        ) : (
+          <ul className="space-y-2">
+            {movements.map((m) => (
+              <li key={m.id} className="flex items-center justify-between text-sm">
+                <span className="text-ink min-w-0 truncate">
+                  {REASON_LABELS[m.reason] || m.reason}
+                  {m.product_variants && (variantLabel(m.product_variants) !== 'Standard') && (
+                    <span className="text-ink/55"> · {variantLabel(m.product_variants)}</span>
+                  )}
+                  <span className="text-ink/40"> · {fmtDate(m.created_at)}</span>
+                </span>
+                <span className={`font-semibold shrink-0 ml-2 ${m.qty_change > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {m.qty_change > 0 ? '+' : ''}{m.qty_change}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-ink/40 text-xs mt-3">
+          Les ventes faites par les vendeurs décomptent leur stock, pas celui du dépôt — elles apparaissent sur leur fiche.
+        </p>
       </section>
 
       <div className="grid grid-cols-2 gap-3">

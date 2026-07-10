@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fmt, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
+import { shareTicket, TicketData } from '@/lib/ticket';
 import { IconScan, IconSearch, IconTrash, IconCheck } from '@/components/Icons';
 import type { CartLine, Customer, Product, Variant, Vendor } from '@/lib/types';
 
@@ -24,7 +25,7 @@ export default function CaissePage() {
   const [received, setReceived] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ total: number; change: number } | null>(null);
+  const [done, setDone] = useState<{ total: number; change: number; ticket: TicketData | null } | null>(null);
 
   const total = useMemo(() => cart.reduce((s, l) => s + l.qty * l.unit_price, 0), [cart]);
   const change = Math.max(0, (Number(received) || 0) - total);
@@ -132,7 +133,13 @@ export default function CaissePage() {
     }
     setBusy(true);
     setError('');
-    const { error: err } = await supabase().rpc('process_sale', {
+    const itemsSnapshot = cart.map((l) => ({
+      name: l.product.name,
+      label: [l.variant.size, l.variant.color].filter(Boolean).join(' · ') || null,
+      qty: l.qty,
+      unit_price: l.unit_price,
+    }));
+    const { data: saleId, error: err } = await supabase().rpc('process_sale', {
       p_items: cart.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.unit_price })),
       p_payment_method: method,
       p_customer_id: method === 'credit' ? customerId : null,
@@ -144,7 +151,21 @@ export default function CaissePage() {
       setError(err.message);
       return;
     }
-    setDone({ total, change: method === 'especes' ? change : 0 });
+    let ticket: TicketData | null = null;
+    if (saleId) {
+      const { data: saleRow } = await supabase().from('sales').select('number,created_at').eq('id', saleId).single();
+      if (saleRow) {
+        ticket = {
+          number: saleRow.number,
+          date: saleRow.created_at,
+          items: itemsSnapshot,
+          total,
+          method,
+          vendorName: vendorId ? vendors.find((v) => v.id === vendorId)?.name || null : null,
+        };
+      }
+    }
+    setDone({ total, change: method === 'especes' ? change : 0, ticket });
     setCart([]);
     setPaying(false);
     setReceived('');
@@ -172,7 +193,12 @@ export default function CaissePage() {
               Monnaie à rendre : <span className="font-bold text-ink">{fmt(done.change)}</span>
             </p>
           )}
-          <button className="btn-primary w-full mt-6" onClick={() => setDone(null)}>
+          {done.ticket && (
+            <button className="btn-glass w-full mt-6" onClick={() => shareTicket(done.ticket!)}>
+              📤 Partager le ticket
+            </button>
+          )}
+          <button className={`btn-primary w-full ${done.ticket ? 'mt-3' : 'mt-6'}`} onClick={() => setDone(null)}>
             Nouvelle vente
           </button>
         </div>

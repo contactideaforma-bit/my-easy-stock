@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { shareTicket } from '@/lib/ticket';
 import { fmt, fmtDate } from '@/lib/utils';
 import { IconBack } from '@/components/Icons';
 import type { Sale } from '@/lib/types';
@@ -117,9 +118,31 @@ export default function VentesPage() {
                 Vente annulée le {fmtDate(selected.canceled_at)} — marchandise remise en stock.
               </p>
             ) : (
-              <button className="btn-danger w-full" onClick={() => cancelSale(selected)} disabled={busy}>
-                {busy ? '…' : 'Annuler cette vente (remise en stock)'}
-              </button>
+              <div className="space-y-2">
+                <button
+                  className="btn-glass w-full"
+                  onClick={() =>
+                    shareTicket({
+                      number: selected.number,
+                      date: selected.created_at,
+                      items: (selected.sale_items || []).map((it) => ({
+                        name: it.product_name,
+                        label: it.variant_label,
+                        qty: it.qty,
+                        unit_price: Number(it.unit_price),
+                      })),
+                      total: Number(selected.total),
+                      method: selected.payment_method,
+                      vendorName: selected.vendors?.name || null,
+                    })
+                  }
+                >
+                  📤 Partager le ticket
+                </button>
+                <button className="btn-danger w-full" onClick={() => cancelSale(selected)} disabled={busy}>
+                  {busy ? '…' : 'Annuler cette vente (remise en stock)'}
+                </button>
+              </div>
             )}
           </div>
         </div>
