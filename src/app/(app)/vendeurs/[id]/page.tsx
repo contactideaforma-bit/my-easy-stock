@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, variantLabel, startOfDay } from '@/lib/utils';
-import { IconBack, IconPlus, IconSearch, IconTrash } from '@/components/Icons';
-import type { Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
+import ProductPicker from '@/components/ProductPicker';
+import { IconBack, IconPlus, IconCash, IconTrash } from '@/components/Icons';
+import type { Product, Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; sale_price: number } };
 type LotLine = { variant: VariantHit; qty: number };
@@ -30,11 +31,18 @@ export default function VendeurDetailPage() {
 
   // lot à donner
   const [allocating, setAllocating] = useState(false);
-  const [q, setQ] = useState('');
-  const [hits, setHits] = useState<VariantHit[]>([]);
+  const [lotPicker, setLotPicker] = useState(false);
   const [lines, setLines] = useState<LotLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // vente rapide sur le stock du vendeur
+  const [saleOpen, setSaleOpen] = useState(false);
+  const [salePicker, setSalePicker] = useState(false);
+  const [saleCart, setSaleCart] = useState<{ variant: Variant; name: string; qty: number; unit_price: number }[]>([]);
+  const [saleMethod, setSaleMethod] = useState<'especes' | 'carte'>('especes');
+  const [saleBusy, setSaleBusy] = useState(false);
+  const [saleError, setSaleError] = useState('');
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -63,30 +71,64 @@ export default function VendeurDetailPage() {
     load();
   }, [load]);
 
-  // recherche d'articles du dépôt
-  useEffect(() => {
-    const s = q.trim();
-    if (s.length < 2) {
-      setHits([]);
+  /** Stock du vendeur : variant_id → quantité détenue */
+  const vendorMap = useMemo(() => {
+    const m: Record<string, number> = {};
+    stock.forEach((l) => (m[l.variant_id] = l.qty));
+    return m;
+  }, [stock]);
+
+  function addLine(p: Product, v: Variant) {
+    const hit: VariantHit = { ...v, products: { name: p.name, sale_price: Number(p.sale_price) } };
+    setLines((prev) => (prev.find((l) => l.variant.id === v.id) ? prev : [...prev, { variant: hit, qty: 1 }]));
+  }
+
+  function addSaleLine(p: Product, v: Variant) {
+    setSaleError('');
+    const dispo = vendorMap[v.id] || 0;
+    setSaleCart((prev) => {
+      const i = prev.findIndex((l) => l.variant.id === v.id);
+      const current = i >= 0 ? prev[i].qty : 0;
+      if (current + 1 > dispo) {
+        setSaleError(`${vendor?.name || 'Le vendeur'} ne détient que ${dispo} pièce(s) de cet article.`);
+        return prev;
+      }
+      if (i >= 0) {
+        const next = [...prev];
+        next[i] = { ...next[i], qty: next[i].qty + 1 };
+        return next;
+      }
+      return [...prev, { variant: v, name: p.name, qty: 1, unit_price: Number(p.sale_price) }];
+    });
+  }
+
+  function setSaleQty(variantId: string, qty: number) {
+    setSaleCart((prev) =>
+      qty <= 0
+        ? prev.filter((l) => l.variant.id !== variantId)
+        : prev.map((l) => (l.variant.id === variantId ? { ...l, qty: Math.min(qty, vendorMap[variantId] || 0) } : l))
+    );
+  }
+
+  async function submitSale() {
+    if (saleCart.length === 0) return;
+    setSaleBusy(true);
+    setSaleError('');
+    const { error: err } = await supabase().rpc('process_sale', {
+      p_items: saleCart.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.unit_price })),
+      p_payment_method: saleMethod,
+      p_customer_id: null,
+      p_paid_amount: saleCart.reduce((s, l) => s + l.qty * l.unit_price, 0),
+      p_vendor_id: id,
+    });
+    setSaleBusy(false);
+    if (err) {
+      setSaleError(err.message);
       return;
     }
-    const t = setTimeout(async () => {
-      const { data } = await supabase()
-        .from('product_variants')
-        .select('*, products!inner(name, sale_price, archived)')
-        .eq('products.archived', false)
-        .gt('stock', 0)
-        .ilike('products.name', `%${s}%`)
-        .limit(8);
-      setHits((data as any) || []);
-    }, 250);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  function addLine(v: VariantHit) {
-    if (!lines.find((l) => l.variant.id === v.id)) setLines([...lines, { variant: v, qty: 1 }]);
-    setQ('');
-    setHits([]);
+    setSaleCart([]);
+    setSaleOpen(false);
+    load();
   }
 
   async function giveLot() {
@@ -222,27 +264,23 @@ export default function VendeurDetailPage() {
         )}
       </section>
 
-      {/* Donner un lot */}
-      {!allocating ? (
-        <button className="btn-primary w-full py-4" onClick={() => setAllocating(true)}>
-          <IconPlus className="w-5 h-5" /> Donner un lot
-        </button>
-      ) : (
+      {/* Actions : lot + vente rapide */}
+      {!allocating && (
+        <div className="grid grid-cols-2 gap-3">
+          <button className="btn-primary py-4" onClick={() => setAllocating(true)}>
+            <IconPlus className="w-5 h-5" /> Donner un lot
+          </button>
+          <button className="btn-accent py-4" onClick={() => { setSaleOpen(true); setSalePicker(true); }}>
+            <IconCash className="w-5 h-5" /> Vente
+          </button>
+        </div>
+      )}
+      {allocating && (
         <div className="glass-strong p-4 space-y-3">
           <h2 className="section-title">Lot à remettre</h2>
-          <div className="relative">
-            <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/40" />
-            <input className="input pl-11" placeholder="Article du dépôt…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          {hits.length > 0 && (
-            <div className="space-y-1">
-              {hits.map((v) => (
-                <button key={v.id} className="w-full text-left text-sm text-ink py-1.5 px-2 rounded-xl hover:bg-crystal-500/10" onClick={() => addLine(v)}>
-                  {v.products.name} <span className="text-ink/55">· {variantLabel(v)} · dépôt {v.stock}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <button className="btn-glass w-full !py-3" onClick={() => setLotPicker(true)}>
+            <IconPlus className="w-4 h-4" /> Ajouter des articles du dépôt
+          </button>
           {lines.map((l, i) => (
             <div key={l.variant.id} className="flex items-center gap-2">
               <div className="flex-1 min-w-0">
@@ -323,6 +361,78 @@ export default function VendeurDetailPage() {
       <button className="btn-glass w-full !text-rose-600" onClick={deactivate}>
         Désactiver ce vendeur
       </button>
+
+      {/* Sélecteur d'articles pour le lot (stock dépôt) */}
+      {lotPicker && (
+        <ProductPicker
+          title="Articles du dépôt à remettre"
+          onPick={addLine}
+          onClose={() => setLotPicker(false)}
+        />
+      )}
+
+      {/* Vente rapide sur le stock du vendeur */}
+      {saleOpen && !salePicker && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setSaleOpen(false)}>
+          <div
+            className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[85dvh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-ink">Vente de {vendor.name}</h3>
+              <button className="btn-glass !py-2 !px-3 text-sm" onClick={() => setSalePicker(true)}>
+                <IconPlus className="w-4 h-4" /> Articles
+              </button>
+            </div>
+
+            {saleCart.length === 0 ? (
+              <p className="text-ink/55 text-sm">Ajoutez les articles vendus par {vendor.name}.</p>
+            ) : (
+              <ul className="space-y-3">
+                {saleCart.map((l) => (
+                  <li key={l.variant.id} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">{l.name}</p>
+                      <p className="text-xs text-ink/55">{variantLabel(l.variant)} · {fmt(l.unit_price)}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setSaleQty(l.variant.id, l.qty - 1)}>−</button>
+                      <span className="w-7 text-center font-bold text-ink">{l.qty}</span>
+                      <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setSaleQty(l.variant.id, l.qty + 1)}>+</button>
+                      <button className="text-rose-500/70 ml-1" onClick={() => setSaleQty(l.variant.id, 0)}>
+                        <IconTrash className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              {(['especes', 'carte'] as const).map((m) => (
+                <button key={m} className={m === saleMethod ? 'btn-primary !py-2.5' : 'btn-glass !py-2.5'} onClick={() => setSaleMethod(m)}>
+                  {m === 'especes' ? 'Espèces' : 'Carte'}
+                </button>
+              ))}
+            </div>
+
+            {saleError && <p className="text-rose-600 text-sm">{saleError}</p>}
+            <button className="btn-accent w-full py-4 justify-between px-6" onClick={submitSale} disabled={saleBusy || saleCart.length === 0}>
+              <span>{saleBusy ? 'Traitement…' : 'Valider la vente'}</span>
+              <span>{fmt(saleCart.reduce((s, l) => s + l.qty * l.unit_price, 0))}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {saleOpen && salePicker && (
+        <ProductPicker
+          title={`Stock de ${vendor.name}`}
+          stockMap={vendorMap}
+          onPick={addSaleLine}
+          onClose={() => setSalePicker(false)}
+        />
+      )}
     </div>
   );
 }

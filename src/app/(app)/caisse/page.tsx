@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
+import ProductPicker from '@/components/ProductPicker';
 import { shareTicket, TicketData } from '@/lib/ticket';
 import { IconScan, IconSearch, IconTrash, IconCheck, IconShare, IconInvoice } from '@/components/Icons';
 import type { CartLine, Customer, Product, Variant, Vendor } from '@/lib/types';
@@ -19,6 +20,7 @@ export default function CaissePage() {
   const [vendorId, setVendorId] = useState('');
   const [vendorStock, setVendorStock] = useState<Record<string, number>>({});
   const [scanning, setScanning] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [method, setMethod] = useState<'especes' | 'carte' | 'credit'>('especes');
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -276,16 +278,19 @@ export default function CaissePage() {
         </p>
       )}
 
-      {/* Recherche + scan */}
+      {/* Recherche + scan + catalogue */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />
-          <input className="input pl-11" placeholder="Rechercher un article…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input className="input pl-11" placeholder="Recherche rapide…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <button className="btn-primary !px-4" onClick={() => setScanning(true)} aria-label="Scanner">
           <IconScan />
         </button>
       </div>
+      <button className="btn-glass w-full !py-3" onClick={() => setBrowsing(true)}>
+        <IconSearch className="w-4 h-4" /> Parcourir le catalogue (filtres par catégorie)
+      </button>
 
       {/* Résultats de recherche */}
       {hits.length > 0 && (
@@ -413,6 +418,15 @@ export default function CaissePage() {
       )}
 
       {scanning && <Scanner onDetected={onScan} onClose={() => setScanning(false)} />}
+
+      {browsing && (
+        <ProductPicker
+          title="Ajouter au panier"
+          stockMap={vendorId ? vendorStock : null}
+          onPick={(p, v) => addToCart(p, v)}
+          onClose={() => setBrowsing(false)}
+        />
+      )}
 
       {/* Association express d'un code inconnu */}
       {pendingCode && (
