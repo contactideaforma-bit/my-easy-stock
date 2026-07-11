@@ -37,6 +37,8 @@ export default function ProduitDetailPage() {
   const [editPrice, setEditPrice] = useState(false);
   const [salePrice, setSalePrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [scanFor, setScanFor] = useState<string | null>(null);
   const [scanMsg, setScanMsg] = useState('');
@@ -53,6 +55,8 @@ export default function ProduitDetailPage() {
     if (p) {
       setSalePrice(String(p.sale_price));
       setPurchasePrice(String(p.purchase_price));
+      setPriceMin(p.price_min != null ? String(p.price_min) : '');
+      setPriceMax(p.price_max != null ? String(p.price_max) : '');
     }
     const ids = ((vs as any) || []).map((v: Variant) => v.id);
     if (ids.length) {
@@ -92,7 +96,12 @@ export default function ProduitDetailPage() {
   async function savePrices() {
     await supabase()
       .from('products')
-      .update({ sale_price: Number(salePrice) || 0, purchase_price: Number(purchasePrice) || 0 })
+      .update({
+        sale_price: Number(salePrice) || 0,
+        purchase_price: Number(purchasePrice) || 0,
+        price_min: priceMin ? Number(priceMin) : null,
+        price_max: priceMax ? Number(priceMax) : null,
+      })
       .eq('id', id);
     setEditPrice(false);
     load();
@@ -132,25 +141,44 @@ export default function ProduitDetailPage() {
           </div>
 
           {editPrice ? (
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <label className="text-ink/55 text-xs">Prix achat</label>
-                <input className="input !py-2" type="number" step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-ink/55 text-xs">Prix achat</label>
+                  <input className="input !py-2" type="number" step="0.01" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-ink/55 text-xs">Prix vente conseillé</label>
+                  <input className="input !py-2" type="number" step="0.01" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-ink/55 text-xs">Prix vente minimum</label>
+                  <input className="input !py-2" type="number" step="0.01" placeholder="optionnel" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-ink/55 text-xs">Prix vente maximum</label>
+                  <input className="input !py-2" type="number" step="0.01" placeholder="optionnel" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} />
+                </div>
               </div>
-              <div className="flex-1">
-                <label className="text-ink/55 text-xs">Prix vente</label>
-                <input className="input !py-2" type="number" step="0.01" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} />
-              </div>
-              <button className="btn-primary !py-2" onClick={savePrices}>OK</button>
+              <button className="btn-primary w-full !py-2" onClick={savePrices}>Enregistrer les prix</button>
             </div>
           ) : (
             <button className="w-full text-left" onClick={() => setEditPrice(true)}>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-bold text-ink">{fmt(Number(product.sale_price))}</span>
-                <span className="text-ink/55 text-sm">
-                  marge {fmt(margin)} · <span className="underline">modifier</span>
-                </span>
+                <span className="text-ink/55 text-sm"><span className="underline">modifier</span></span>
               </div>
+              <p className="text-ink/60 text-sm mt-1">
+                Prix d&apos;achat : <span className="font-semibold text-ink">{fmt(Number(product.purchase_price))}</span>
+                {' '}· marge unitaire : <span className={`font-semibold ${margin >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(margin)}</span>
+              </p>
+              <p className="text-ink/60 text-xs mt-0.5">
+                {product.price_min != null || product.price_max != null ? (
+                  <>Fourchette de vente : {product.price_min != null ? fmt(Number(product.price_min)) : '—'} à {product.price_max != null ? fmt(Number(product.price_max)) : '—'}</>
+                ) : (
+                  <>Aucune fourchette min–max définie (touchez pour en fixer une)</>
+                )}
+              </p>
             </button>
           )}
         </div>

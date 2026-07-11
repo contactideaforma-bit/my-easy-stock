@@ -8,7 +8,7 @@ import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
 
 type LowStock = { id: string; size: string | null; color: string | null; stock: number; products: { name: string; low_stock_threshold: number } };
 type RecentSale = { id: string; number: number; total: number; payment_method: string; created_at: string; vendors: { name: string } | null };
-type VendorLine = { id: string; name: string; ca: number; nb: number; pieces: number };
+type VendorLine = { id: string; name: string; ca: number; nb: number; pieces: number; achat: number };
 
 function startOfMonth() {
   const d = startOfDay();
@@ -17,7 +17,10 @@ function startOfMonth() {
 }
 
 export default function Dashboard() {
-  const [kpi, setKpi] = useState({ caMois: 0, nbMois: 0, caToday: 0, stockDepot: 0, stockVendeurs: 0, stockValue: 0 });
+  const [kpi, setKpi] = useState({
+    caMois: 0, nbMois: 0, caToday: 0, benefMois: 0,
+    depotPieces: 0, depotAchat: 0, vendPieces: 0, vendAchat: 0,
+  });
   const [vendorLines, setVendorLines] = useState<VendorLine[]>([]);
   const [lowStock, setLowStock] = useState<LowStock[]>([]);
   const [recent, setRecent] = useState<RecentSale[]>([]);
@@ -38,25 +41,31 @@ export default function Dashboard() {
       const monthStart = startOfMonth().toISOString();
       const todayStart = startOfDay().toISOString();
 
-      const [{ data: monthSales }, { data: variants }, { data: vendorStock }, { data: vendors }, { data: recentSales }] =
+      const [{ data: monthSales }, { data: monthItems }, { data: variants }, { data: vendorStock }, { data: vendors }, { data: recentSales }] =
         await Promise.all([
           sb.from('sales').select('total,vendor_id,created_at').gte('created_at', monthStart).is('canceled_at', null),
-          sb.from('product_variants').select('id,size,color,stock,products!inner(name,low_stock_threshold,sale_price,archived)'),
-          sb.from('vendor_stock').select('vendor_id,qty'),
+          sb.from('sale_items').select('qty,purchase_price,sales!inner(created_at,canceled_at)').gte('sales.created_at', monthStart).is('sales.canceled_at', null),
+          sb.from('product_variants').select('id,size,color,stock,products!inner(name,low_stock_threshold,purchase_price,archived)'),
+          sb.from('vendor_stock').select('vendor_id,qty,product_variants(products(purchase_price))'),
           sb.from('vendors').select('id,name').eq('active', true),
           sb.from('sales').select('id,number,total,payment_method,created_at,vendors(name)').is('canceled_at', null).order('created_at', { ascending: false }).limit(5),
         ]);
 
       const caMois = (monthSales || []).reduce((s, x) => s + Number(x.total), 0);
       const caToday = (monthSales || []).filter((x) => x.created_at >= todayStart).reduce((s, x) => s + Number(x.total), 0);
+      // Bénéfice du mois = CA encaissable (remises déduites) − coût d'achat des articles vendus
+      const coutVendu = (monthItems || []).reduce((s: number, it: any) => s + it.qty * Number(it.purchase_price || 0), 0);
+      const benefMois = caMois - coutVendu;
 
       const active = (variants || []).filter((v: any) => !v.products.archived);
-      const stockDepot = active.reduce((s: number, v: any) => s + v.stock, 0);
-      const stockVendeurs = (vendorStock || []).reduce((s: number, r: any) => s + r.qty, 0);
-      const stockValue = active.reduce((s: number, v: any) => s + v.stock * Number(v.products.sale_price), 0);
+      const depotPieces = active.reduce((s: number, v: any) => s + v.stock, 0);
+      const depotAchat = active.reduce((s: number, v: any) => s + v.stock * Number(v.products.purchase_price || 0), 0);
+      const vendPieces = (vendorStock || []).reduce((s: number, r: any) => s + r.qty, 0);
+      const vendAchat = (vendorStock || []).reduce(
+        (s: number, r: any) => s + r.qty * Number(r.product_variants?.products?.purchase_price || 0), 0);
       const low = active.filter((v: any) => v.stock <= v.products.low_stock_threshold).slice(0, 6);
 
-      // Ventes du mois par vendeur
+      // Ventes du mois par revendeur
       const byVendor: Record<string, { ca: number; nb: number }> = {};
       (monthSales || []).forEach((s: any) => {
         const k = s.vendor_id || 'depot';
@@ -65,20 +74,26 @@ export default function Dashboard() {
         byVendor[k].nb += 1;
       });
       const piecesByVendor: Record<string, number> = {};
-      (vendorStock || []).forEach((r: any) => (piecesByVendor[r.vendor_id] = (piecesByVendor[r.vendor_id] || 0) + r.qty));
+      const achatByVendor: Record<string, number> = {};
+      (vendorStock || []).forEach((r: any) => {
+        piecesByVendor[r.vendor_id] = (piecesByVendor[r.vendor_id] || 0) + r.qty;
+        achatByVendor[r.vendor_id] =
+          (achatByVendor[r.vendor_id] || 0) + r.qty * Number(r.product_variants?.products?.purchase_price || 0);
+      });
 
       const lines: VendorLine[] = [
-        { id: 'depot', name: 'Dépôt (moi)', ca: byVendor['depot']?.ca || 0, nb: byVendor['depot']?.nb || 0, pieces: stockDepot },
+        { id: 'depot', name: 'Dépôt (moi)', ca: byVendor['depot']?.ca || 0, nb: byVendor['depot']?.nb || 0, pieces: depotPieces, achat: depotAchat },
         ...((vendors as any) || []).map((v: any) => ({
           id: v.id,
           name: v.name,
           ca: byVendor[v.id]?.ca || 0,
           nb: byVendor[v.id]?.nb || 0,
           pieces: piecesByVendor[v.id] || 0,
+          achat: achatByVendor[v.id] || 0,
         })),
       ].sort((a, b) => b.ca - a.ca);
 
-      setKpi({ caMois, nbMois: (monthSales || []).length, caToday, stockDepot, stockVendeurs, stockValue });
+      setKpi({ caMois, nbMois: (monthSales || []).length, caToday, benefMois, depotPieces, depotAchat, vendPieces, vendAchat });
       setVendorLines(lines);
       setLowStock(low as any);
       setRecent((recentSales as any) || []);
@@ -96,28 +111,37 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold text-ink tracking-tight">Bonjour{name ? ` ${name}` : ''}</h1>
       </header>
 
-      {/* KPIs du mois */}
+      {/* CA & bénéfice du mois — temps réel */}
       <div className="glass-strong p-4">
         <div className="flex items-baseline justify-between">
-          <p className="text-ink/60 text-xs">Ventes du mois</p>
-          <p className="text-ink/45 text-xs">aujourd&apos;hui : {fmt(kpi.caToday)}</p>
+          <p className="text-ink/60 text-xs">Chiffre d&apos;affaires du mois <span className="text-ink/40">(dépôt + revendeurs)</span></p>
+          <p className="text-ink/45 text-xs">dont aujourd&apos;hui : {fmt(kpi.caToday)}</p>
         </div>
         <p className="text-3xl font-bold text-crystal-700 mt-1">{fmt(kpi.caMois)}</p>
-        <p className="text-ink/55 text-xs mt-1">{kpi.nbMois} vente{kpi.nbMois > 1 ? 's' : ''} ce mois-ci</p>
+        <div className="flex items-baseline justify-between mt-2 pt-2 border-t border-ink/10">
+          <p className="text-ink/60 text-xs">Bénéfice du mois <span className="text-ink/40">(CA − coût d&apos;achat des articles vendus)</span></p>
+          <p className={`text-xl font-bold ${kpi.benefMois >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(kpi.benefMois)}</p>
+        </div>
+        <p className="text-ink/55 text-xs mt-1">{kpi.nbMois} vente{kpi.nbMois > 1 ? 's' : ''} enregistrée{kpi.nbMois > 1 ? 's' : ''} ce mois-ci</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      {/* Stock en pièces et valeur d'achat */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="glass p-3">
-          <p className="text-ink/55 text-[11px]">Stock dépôt</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{fmtQty(kpi.stockDepot)}</p>
+          <p className="text-ink/55 text-[11px]">Stock au dépôt</p>
+          <p className="text-lg font-bold text-ink mt-0.5">
+            {fmtQty(kpi.depotPieces)} <span className="text-xs font-normal text-ink/50">pièces</span>
+          </p>
+          <p className="text-crystal-700 text-sm font-semibold">{fmt(kpi.depotAchat)}</p>
+          <p className="text-ink/45 text-[10px]">valeur d&apos;achat du stock dépôt</p>
         </div>
         <div className="glass p-3">
-          <p className="text-ink/55 text-[11px]">Chez revendeurs</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{fmtQty(kpi.stockVendeurs)}</p>
-        </div>
-        <div className="glass p-3">
-          <p className="text-ink/55 text-[11px]">Valeur dépôt</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{fmt(kpi.stockValue)}</p>
+          <p className="text-ink/55 text-[11px]">Chez les revendeurs <span className="text-ink/40">(tous confondus)</span></p>
+          <p className="text-lg font-bold text-ink mt-0.5">
+            {fmtQty(kpi.vendPieces)} <span className="text-xs font-normal text-ink/50">pièces</span>
+          </p>
+          <p className="text-crystal-700 text-sm font-semibold">{fmt(kpi.vendAchat)}</p>
+          <p className="text-ink/45 text-[10px]">valeur d&apos;achat du stock confié</p>
         </div>
       </div>
 
@@ -138,7 +162,7 @@ export default function Dashboard() {
       <section className="glass p-4">
         <div className="flex items-center gap-2 mb-3">
           <IconUsers className="w-5 h-5 text-crystal-600" />
-          <h2 className="section-title">Ce mois, par revendeur</h2>
+          <h2 className="section-title">Par revendeur — stock détenu et CA du mois</h2>
         </div>
         {vendorLines.length === 0 ? (
           <p className="text-ink/55 text-sm">Créez vos revendeurs pour suivre leurs ventes.</p>
@@ -147,12 +171,13 @@ export default function Dashboard() {
             {vendorLines.map((l) => (
               <li key={l.id}>
                 <Link href={l.id === 'depot' ? '/produits' : `/vendeurs/${l.id}`} className="block">
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-ink font-medium">
-                      {l.name} <span className="text-ink/45 font-normal">· {l.nb} vente{l.nb > 1 ? 's' : ''} · {fmtQty(l.pieces)} pcs</span>
-                    </span>
-                    <span className="font-semibold text-ink">{fmt(l.ca)}</span>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-ink font-medium">{l.name}</span>
+                    <span className="font-semibold text-ink">{fmt(l.ca)} <span className="text-ink/40 text-xs font-normal">CA du mois</span></span>
                   </div>
+                  <p className="text-ink/50 text-xs mb-1">
+                    {fmtQty(l.pieces)} pièce{l.pieces > 1 ? 's' : ''} en stock · valeur d&apos;achat {fmt(l.achat)} · {l.nb} vente{l.nb > 1 ? 's' : ''} ce mois
+                  </p>
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(13,43,78,0.08)' }}>
                     <div
                       className="h-full rounded-full"

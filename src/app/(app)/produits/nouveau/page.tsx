@@ -36,6 +36,8 @@ export default function NouveauProduitPage() {
   const [newCatName, setNewCatName] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [salePrice, setSalePrice] = useState('');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
   const [threshold, setThreshold] = useState('3');
 
   // Déclinaisons
@@ -156,6 +158,8 @@ export default function NouveauProduitPage() {
         category_id: categoryId || null,
         purchase_price: Number(purchasePrice) || 0,
         sale_price: Number(salePrice),
+        price_min: priceMin ? Number(priceMin) : null,
+        price_max: priceMax ? Number(priceMax) : null,
         low_stock_threshold: Number(threshold) || 3,
         image_url: imageUrl,
       })
@@ -293,6 +297,19 @@ export default function NouveauProduitPage() {
             <input className="input" type="number" inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-ink/55 text-xs pl-1">Prix de vente minimum</label>
+            <input className="input" type="number" step="0.01" inputMode="decimal" placeholder="optionnel" value={priceMin} onChange={(e) => setPriceMin(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-ink/55 text-xs pl-1">Prix de vente maximum</label>
+            <input className="input" type="number" step="0.01" inputMode="decimal" placeholder="optionnel" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} />
+          </div>
+        </div>
+        <p className="text-ink/45 text-xs">
+          La fourchette min–max sert de garde-fou : tout prix saisi hors fourchette lors d&apos;une vente ou d&apos;une remise de lot sera signalé.
+        </p>
       </div>
 
       {/* ---------- Tailles ---------- */}

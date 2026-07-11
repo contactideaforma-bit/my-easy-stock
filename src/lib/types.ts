@@ -6,6 +6,8 @@ export type Product = {
   image_url: string | null;
   purchase_price: number;
   sale_price: number;
+  price_min?: number | null;
+  price_max?: number | null;
   low_stock_threshold: number;
   archived: boolean;
   created_at: string;

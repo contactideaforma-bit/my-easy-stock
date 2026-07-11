@@ -155,9 +155,12 @@ export default function FournisseursPage() {
 
       {tab === 'commandes' && (
         <>
+          <Link href="/fournisseurs/scan" className="btn-accent w-full !py-3">
+            📷 Scanner un bon d&apos;achat (extraction automatique)
+          </Link>
           {!ordering ? (
             <button className="btn-primary w-full" onClick={() => setOrdering(true)}>
-              <IconPlus className="w-4 h-4" /> Nouvelle commande
+              <IconPlus className="w-4 h-4" /> Nouvelle commande manuelle
             </button>
           ) : (
             <div className="glass-strong p-4 space-y-3">

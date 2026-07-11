@@ -124,6 +124,8 @@ export default function QuickSale({
   const benefice = totalVente - totalAchat;
   const nbPieces = lines.reduce((s, l) => s + l.qty, 0);
   const catalogue = Number(product.sale_price);
+  const pMin = product.price_min != null ? Number(product.price_min) : null;
+  const pMax = product.price_max != null ? Number(product.price_max) : null;
   const lotDue =
     dueType === 'montant'
       ? Math.max(0, Number(dueAmount) || 0)
@@ -416,9 +418,13 @@ export default function QuickSale({
                   onChange={(e) => setPrice(l.variant.id, Number(e.target.value))}
                   aria-label="Prix unitaire"
                 />
-                {l.price < catalogue && (
+                {pMin != null && l.price < pMin ? (
+                  <span className="chip chip-danger !text-[10px] !px-1.5 shrink-0" title={`Sous le prix minimum ${fmt(pMin)}`}>&lt; min {fmt(pMin)}</span>
+                ) : pMax != null && l.price > pMax ? (
+                  <span className="chip chip-warn !text-[10px] !px-1.5 shrink-0" title={`Au-dessus du prix maximum ${fmt(pMax)}`}>&gt; max {fmt(pMax)}</span>
+                ) : l.price < catalogue ? (
                   <span className="chip chip-warn !text-[10px] !px-1.5 shrink-0">−{Math.round((1 - l.price / catalogue) * 100)}%</span>
-                )}
+                ) : null}
                 <button className="text-rose-500/70 shrink-0" onClick={() => setQty(l.variant.id, 0)}>
                   <IconTrash className="w-4 h-4" />
                 </button>

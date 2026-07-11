@@ -7,7 +7,8 @@
 --    données existantes. Il remplace aussi le profil société par la
 --    société fictive « Maison Riviera » (re-personnalisable ensuite
 --    depuis Plus > Profil société).
--- Images : loremflickr.com (photos Flickr sous licence Creative Commons).
+-- Images : photos Unsplash sélectionnées par catégorie (URLs fixes et
+--          vérifiées, correspondant au type d'article représenté).
 --
 -- MULTI-COMPTES : les données créées appartiennent au compte démo.
 -- 1) Créez d'abord l'utilisateur démo (Authentication → Users → Add user)
@@ -19,7 +20,7 @@ declare
   v_demo_email text := 'webideaforma@gmail.com';   -- ⬅️ EMAIL DU COMPTE DÉMO
   v_owner uuid;
   cat record;
-  kw text;
+  imgs text[];
   pnames text[];
   brands text[] := array['Riviera','Milano','Urban Nord','Atelier 12','Costa','Nova','Saint-Louis','Belleface'];
   colors_all text[] := array['Noir','Blanc','Beige','Bleu marine','Bleu','Rouge','Vert','Rose','Gris','Marron','Kaki','Bordeaux'];
@@ -81,16 +82,35 @@ begin
 
   -- ---------- PRODUITS (~100) ----------
   for cat in select * from categories where owner_id = v_owner order by name loop
-    kw := case cat.name
-      when 'T-shirts' then 'tshirt'
-      when 'Pantalons' then 'jeans'
-      when 'Robes' then 'dress'
-      when 'Vestes' then 'jacket'
-      when 'Baskets' then 'sneakers'
-      when 'Chaussures ville' then 'shoes'
-      when 'Sandales' then 'sandals'
-      when 'Accessoires' then 'handbag'
-      else 'clothes' end;
+    -- Photos Unsplash fixes, cohérentes avec la catégorie (cyclées par produit)
+    imgs := case cat.name
+      when 'T-shirts' then array[
+        'photo-1521572163474-6864f9cf17ab',  -- t-shirt blanc plié
+        'photo-1576566588028-4147f3842f27']  -- t-shirt porté uni
+      when 'Pantalons' then array[
+        'photo-1541099649105-f69ad21f3246',  -- jean plié sur fond neutre
+        'photo-1542272604-787c3835535d']     -- pile de jeans
+      when 'Robes' then array[
+        'photo-1595777457583-95e059d581b8',  -- robe fleurie sur cintre
+        'photo-1496747611176-843222e1e57c']  -- robe élégante
+      when 'Vestes' then array[
+        'photo-1551028719-00167b16eac5',     -- veste cuir marron
+        'photo-1539533018447-63fcce2678e3']  -- manteau long
+      when 'Baskets' then array[
+        'photo-1542291026-7eec264c27ff',     -- basket running rouge
+        'photo-1549298916-b41d501d3772',     -- basket blanche
+        'photo-1560769629-975ec94e6a86',     -- basket toile
+        'photo-1595950653106-6c9ebd614d3a',  -- paire de baskets
+        'photo-1600185365483-26d7a4cc7519']  -- basket lifestyle
+      when 'Chaussures ville' then array[
+        'photo-1543163521-1bf539c55dd2',     -- escarpins cuir
+        'photo-1560343090-f0409e92791a']     -- chaussure produit fond blanc
+      when 'Sandales' then array[
+        'photo-1603487742131-4160ec999306']  -- sandales été
+      when 'Accessoires' then array[
+        'photo-1584917865442-de89df76afd3',  -- sac à main cuir
+        'photo-1553062407-98eeb64c6a62']     -- sac / maroquinerie
+      else array['photo-1521572163474-6864f9cf17ab'] end;
 
     pnames := case cat.name
       when 'T-shirts' then array['T-shirt coton bio','T-shirt col V','T-shirt oversize','T-shirt rayé marin','T-shirt imprimé palme','Polo piqué','T-shirt manches longues','T-shirt sport respirant','T-shirt col roulé léger','T-shirt poche poitrine','T-shirt délavé vintage','T-shirt enfant licorne','Débardeur côtelé']
@@ -116,15 +136,17 @@ begin
       v_purchase := round((3 + random() * 22)::numeric, 2);
       v_sale := round((v_purchase * (1.9 + random() * 1.1))::numeric / 0.5) * 0.5;
 
-      insert into products (name, brand, category_id, purchase_price, sale_price, low_stock_threshold, image_url)
+      insert into products (name, brand, category_id, purchase_price, sale_price, price_min, price_max, low_stock_threshold, image_url)
       values (
         n,
         brands[1 + floor(random() * array_length(brands, 1))::int],
         cat.id,
         v_purchase,
         v_sale,
+        round(v_sale * 0.85 / 0.5) * 0.5,   -- prix de vente minimum conseillé
+        round(v_sale * 1.20 / 0.5) * 0.5,   -- prix de vente maximum conseillé
         3,
-        'https://loremflickr.com/480/480/' || kw || '?lock=' || i
+        'https://images.unsplash.com/' || imgs[1 + (i % array_length(imgs, 1))] || '?w=480&q=80&auto=format&fit=crop'
       )
       returning id into v_pid;
 
