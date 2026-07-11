@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, startOfDay } from '@/lib/utils';
+import { fmt, fmtQty, startOfDay } from '@/lib/utils';
 import { IconPlus, IconUsers } from '@/components/Icons';
 import type { Vendor } from '@/lib/types';
 
@@ -82,17 +82,17 @@ export default function VendeursPage() {
   return (
     <div className="space-y-4 pb-8">
       <header className="flex items-center justify-between pt-2">
-        <h1 className="text-2xl font-bold text-ink">Vendeurs</h1>
+        <h1 className="text-2xl font-bold text-ink">Revendeurs</h1>
         <button className="btn-primary !py-2 !px-3 text-sm" onClick={() => setAdding(!adding)}>
-          <IconPlus className="w-4 h-4" /> Vendeur
+          <IconPlus className="w-4 h-4" /> Revendeur
         </button>
       </header>
 
       {adding && (
         <div className="glass-strong p-4 space-y-3">
-          <input className="input" placeholder="Nom du vendeur *" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="input" placeholder="Nom du revendeur *" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="input" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <button className="btn-primary w-full" onClick={addVendor}>Créer le vendeur</button>
+          <button className="btn-primary w-full" onClick={addVendor}>Créer le revendeur</button>
         </div>
       )}
 
@@ -102,7 +102,7 @@ export default function VendeursPage() {
         <div className="glass-strong p-8 text-center space-y-3">
           <IconUsers className="w-10 h-10 mx-auto text-crystal-500" />
           <p className="text-ink/70">
-            Créez vos vendeurs, donnez-leur des lots de marchandise, et suivez qui détient quoi et qui vend quoi.
+            Créez vos revendeurs, remettez-leur des lots de marchandise, et suivez qui détient quoi et qui vend quoi.
           </p>
         </div>
       ) : (
@@ -118,7 +118,7 @@ export default function VendeursPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-ink truncate">{v.name}</p>
                 <p className="text-ink/55 text-xs">
-                  {v.pieces} pièce{v.pieces > 1 ? 's' : ''} en stock · {v.nbVentes} vente{v.nbVentes > 1 ? 's' : ''} ce mois
+                  {fmtQty(v.pieces)} pièce{v.pieces > 1 ? 's' : ''} en stock · {v.nbVentes} vente{v.nbVentes > 1 ? 's' : ''} ce mois
                 </p>
               </div>
               <div className="text-right shrink-0">

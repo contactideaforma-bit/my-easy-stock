@@ -1,6 +1,9 @@
 export const fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n || 0);
 
+/** Quantités : séparateur de milliers fr-FR (ex. 50 000) — indispensable pour les gros stocks */
+export const fmtQty = (n: number) => new Intl.NumberFormat('fr-FR').format(n || 0);
+
 export const fmtDate = (d: string | Date) =>
   new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(
     typeof d === 'string' ? new Date(d) : d

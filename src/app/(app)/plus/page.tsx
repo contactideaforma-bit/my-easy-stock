@@ -65,7 +65,7 @@ export default function PlusPage() {
   }
 
   const items = [
-    { href: '/ventes', label: 'Journal des ventes', desc: 'Historique complet, annulation et remise en stock', icon: IconCash },
+    { href: '/caisse', label: 'Caisse — vente au détail', desc: 'Vente directe occasionnelle depuis le dépôt (scan, espèces/carte/crédit)', icon: IconCash },
     { href: '/inventaire', label: 'Inventaire', desc: 'Comptage par scan, écarts, correction du stock', icon: IconClipboard },
     { href: '/clients', label: 'Clients & crédit', desc: 'Fiches clients, ardoises, règlements', icon: IconUsers },
     { href: '/fournisseurs', label: 'Fournisseurs & achats', desc: 'Commandes, réceptions de stock', icon: IconTruck },

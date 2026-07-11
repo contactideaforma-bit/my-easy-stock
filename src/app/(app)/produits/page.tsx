@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt } from '@/lib/utils';
+import { fmt, fmtQty } from '@/lib/utils';
 import { IconPlus, IconSearch, IconBox } from '@/components/Icons';
 import type { Category, Product } from '@/lib/types';
 
@@ -94,7 +94,7 @@ export default function ProduitsPage() {
                   {p.brand && <p className="text-ink/55 text-xs mt-0.5">{p.brand}</p>}
                   <div className="flex items-center justify-between mt-2">
                     <span className="font-bold text-crystal-800">{fmt(Number(p.sale_price))}</span>
-                    <span className={`chip ${total === 0 ? 'chip-danger' : low ? 'chip-warn' : ''}`}>{total}</span>
+                    <span className={`chip ${total === 0 ? 'chip-danger' : low ? 'chip-warn' : ''}`}>{fmtQty(total)}</span>
                   </div>
                 </div>
               </Link>

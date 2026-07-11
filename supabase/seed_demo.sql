@@ -16,7 +16,7 @@
 
 do $$
 declare
-  v_demo_email text := 'demo@ideaforma.fr';   -- ⬅️ EMAIL DU COMPTE DÉMO
+  v_demo_email text := 'webideaforma@gmail.com';   -- ⬅️ EMAIL DU COMPTE DÉMO
   v_owner uuid;
   cat record;
   kw text;

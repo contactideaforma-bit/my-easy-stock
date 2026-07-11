@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDate, variantLabel, startOfDay } from '@/lib/utils';
+import { fmt, fmtDate, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
 import ProductPicker from '@/components/ProductPicker';
 import { IconBack, IconPlus, IconCash, IconTrash } from '@/components/Icons';
 import type { Product, Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
@@ -124,7 +124,7 @@ export default function VendeurDetailPage() {
       const i = prev.findIndex((l) => l.variant.id === v.id);
       const current = i >= 0 ? prev[i].qty : 0;
       if (current + 1 > dispo) {
-        setSaleError(`${vendor?.name || 'Le vendeur'} ne détient que ${dispo} pièce(s) de cet article.`);
+        setSaleError(`${vendor?.name || 'Le revendeur'} ne détient que ${fmtQty(dispo)} pièce(s) de cet article.`);
         return prev;
       }
       if (i >= 0) {
@@ -248,10 +248,10 @@ export default function VendeurDetailPage() {
   async function deactivate() {
     const pieces = stock.reduce((s, l) => s + l.qty, 0);
     if (pieces > 0) {
-      alert('Reprenez d’abord tout son stock avant de désactiver ce vendeur.');
+      alert('Reprenez d’abord tout son stock avant de désactiver ce revendeur.');
       return;
     }
-    if (!confirm('Désactiver ce vendeur ?')) return;
+    if (!confirm('Désactiver ce revendeur ?')) return;
     await supabase().from('vendors').update({ active: false }).eq('id', id);
     router.replace('/vendeurs');
   }
@@ -292,7 +292,7 @@ export default function VendeurDetailPage() {
         </div>
         <div className="glass p-3">
           <p className="text-ink/55 text-[11px]">En stock</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{pieces}</p>
+          <p className="text-lg font-bold text-ink mt-0.5">{fmtQty(pieces)}</p>
         </div>
       </div>
 
@@ -360,7 +360,7 @@ export default function VendeurDetailPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-ink truncate">{l.variant.products.name}</p>
                 <p className="text-xs text-ink/55">
-                  {variantLabel(l.variant)} · dépôt {l.variant.stock}
+                  {variantLabel(l.variant)} · dépôt {fmtQty(l.variant.stock)}
                   {l.price < l.variant.products.sale_price && (
                     <span className="text-coral-600 font-medium">
                       {' '}· −{Math.round((1 - l.price / l.variant.products.sale_price) * 100)} %
@@ -399,7 +399,7 @@ export default function VendeurDetailPage() {
           {lines.length > 0 && (
             <>
               <p className="text-ink/45 text-xs">
-                Le prix convenu sera proposé automatiquement lors des ventes de ce vendeur.
+                Le prix convenu sera proposé automatiquement lors des ventes de ce revendeur.
               </p>
 
               {/* Reversement convenu */}
@@ -422,7 +422,7 @@ export default function VendeurDetailPage() {
                 </div>
                 {dueType === 'ventes' && (
                   <p className="text-ink/45 text-xs mt-2">
-                    Le dû suivra les ventes que vous enregistrerez pour ce vendeur.
+                    Le dû suivra les ventes que vous enregistrerez pour ce revendeur.
                   </p>
                 )}
                 {dueType === 'montant' && (
@@ -462,7 +462,7 @@ export default function VendeurDetailPage() {
                   <span className="text-right font-semibold text-ink">{fmt(lotValue)}</span>
                   <span className="text-ink/60">Coût d&apos;achat du lot</span>
                   <span className="text-right text-ink">{fmt(lotCost)}</span>
-                  <span className="text-ink/60">Reversement du vendeur</span>
+                  <span className="text-ink/60">Reversement du revendeur</span>
                   <span className="text-right font-semibold text-coral-600">
                     {lotDue != null ? fmt(lotDue) : `${fmt(lotValue)} (au réel, si tout est vendu)`}
                   </span>
@@ -495,7 +495,7 @@ export default function VendeurDetailPage() {
           {valeur > 0 && <span className="text-xs text-ink/55">valeur {fmt(valeur)}</span>}
         </div>
         {stock.length === 0 ? (
-          <p className="text-ink/55 text-sm">Ce vendeur ne détient aucune marchandise.</p>
+          <p className="text-ink/55 text-sm">Ce revendeur ne détient aucune marchandise.</p>
         ) : (
           <ul className="space-y-3">
             {stock.map((l) => (
@@ -510,7 +510,7 @@ export default function VendeurDetailPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="chip">{l.qty}</span>
+                  <span className="chip">{fmtQty(l.qty)}</span>
                   <button className="btn-glass !py-1.5 !px-3 text-xs" onClick={() => takeBack(l)}>Reprendre</button>
                 </div>
               </li>
@@ -523,7 +523,7 @@ export default function VendeurDetailPage() {
       <section className="glass p-4">
         <h2 className="section-title mb-3">Ventes du mois</h2>
         {monthSales.length === 0 ? (
-          <p className="text-ink/55 text-sm">Aucune vente ce mois-ci. Enregistrez-en une via la Caisse (stock : {vendor.name}).</p>
+          <p className="text-ink/55 text-sm">Aucune vente ce mois-ci. Enregistrez-en une avec le bouton « Vente » ci-dessus.</p>
         ) : (
           <ul className="space-y-2">
             {monthSales.map((s) => (
@@ -539,7 +539,7 @@ export default function VendeurDetailPage() {
       </section>
 
       <button className="btn-glass w-full !text-rose-600" onClick={deactivate}>
-        Désactiver ce vendeur
+        Désactiver ce revendeur
       </button>
 
       {/* Sélecteur d'articles pour le lot (stock dépôt) */}
@@ -589,7 +589,16 @@ export default function VendeurDetailPage() {
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setSaleQty(l.variant.id, l.qty - 1)}>−</button>
-                      <span className="w-7 text-center font-bold text-ink">{l.qty}</span>
+                      <input
+                        className="input !w-16 !py-1 !px-1 !rounded-lg text-center font-bold"
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={vendorMap[l.variant.id] || 0}
+                        value={l.qty}
+                        onChange={(e) => setSaleQty(l.variant.id, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                        aria-label="Quantité"
+                      />
                       <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setSaleQty(l.variant.id, l.qty + 1)}>+</button>
                       <button className="text-rose-500/70 ml-1" onClick={() => setSaleQty(l.variant.id, 0)}>
                         <IconTrash className="w-4 h-4" />

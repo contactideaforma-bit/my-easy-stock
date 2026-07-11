@@ -6,11 +6,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { IconHome, IconBox, IconCash, IconUsers, IconDots } from '@/components/Icons';
 
+// Navigation pensée grossiste : les revendeurs sont le cœur de l'activité (bouton central).
+// La vente au détail (Caisse) reste accessible via « Plus » et l'accueil, sans être mise en avant.
 const tabs: { href: string; label: string; icon: (p: { className?: string }) => JSX.Element; big?: boolean }[] = [
   { href: '/app', label: 'Accueil', icon: IconHome },
   { href: '/produits', label: 'Produits', icon: IconBox },
-  { href: '/caisse', label: 'Vendre', icon: IconCash, big: true },
-  { href: '/vendeurs', label: 'Vendeurs', icon: IconUsers },
+  { href: '/vendeurs', label: 'Revendeurs', icon: IconUsers, big: true },
+  { href: '/ventes', label: 'Ventes', icon: IconCash },
   { href: '/plus', label: 'Plus', icon: IconDots },
 ];
 

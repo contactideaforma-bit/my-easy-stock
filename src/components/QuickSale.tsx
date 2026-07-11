@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, variantLabel } from '@/lib/utils';
+import { fmt, fmtQty, variantLabel } from '@/lib/utils';
 import { shareTicket } from '@/lib/ticket';
 import { IconCheck, IconInvoice, IconShare, IconTrash } from '@/components/Icons';
 import { customerLabel } from '@/lib/types';
@@ -12,10 +12,11 @@ import type { Customer, Product, Variant, Vendor } from '@/lib/types';
 type Line = { variant: Variant; qty: number; price: number };
 
 /**
- * Vente express depuis une fiche produit :
- * plusieurs déclinaisons sélectionnables (panier), quantité + prix libre par ligne,
- * résumé achat/vente/bénéfice, client OU revendeur (créables à la volée),
- * facture et ticket à la fin.
+ * Sortie de marchandise express depuis une fiche produit — pensée grossiste :
+ * — Revendeur (par défaut) : remise d'un lot puisé dans le stock du dépôt,
+ *   prix convenu par ligne, mode de reversement (au réel / forfait / %).
+ * — Client (détail, occasionnel) : vente directe du dépôt, espèces/carte/crédit.
+ * Quantités saisissables directement pour gérer de gros volumes.
  */
 export default function QuickSale({
   product,
@@ -29,14 +30,16 @@ export default function QuickSale({
   onDone: () => void;
 }) {
   const [lines, setLines] = useState<Line[]>([]);
-  const [target, setTarget] = useState<'client' | 'vendeur'>('client');
+  const [target, setTarget] = useState<'revendeur' | 'client'>('revendeur');
   const [method, setMethod] = useState<'especes' | 'carte' | 'credit'>('especes');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [vendorId, setVendorId] = useState('');
-  const [vendorMap, setVendorMap] = useState<Record<string, number>>({});
   const [agreedMap, setAgreedMap] = useState<Record<string, number>>({});
+  const [dueType, setDueType] = useState<'ventes' | 'montant' | 'pourcentage'>('ventes');
+  const [dueRate, setDueRate] = useState('');
+  const [dueAmount, setDueAmount] = useState('');
   const [newMode, setNewMode] = useState(false);
   const [newName, setNewName] = useState('');
   const [newFirst, setNewFirst] = useState('');
@@ -45,7 +48,11 @@ export default function QuickSale({
   const [newAddress, setNewAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [done, setDone] = useState<{ saleId: string; number: number; date: string; total: number; benefice: number } | null>(null);
+  const [done, setDone] = useState<
+    | { kind: 'vente'; saleId: string; number: number; date: string; total: number; benefice: number }
+    | { kind: 'lot'; vendorId: string; vendorName: string; pieces: number; value: number }
+    | null
+  >(null);
 
   useEffect(() => {
     const sb = supabase();
@@ -53,33 +60,31 @@ export default function QuickSale({
     sb.from('vendors').select('*').eq('active', true).order('name').then(({ data }) => setVendors((data as any) || []));
   }, []);
 
-  // Stock du revendeur sélectionné pour ce produit
+  // Prix convenus avec le revendeur sélectionné (proposés par défaut sur les lignes)
   useEffect(() => {
-    setLines([]);
-    if (target !== 'vendeur' || !vendorId) {
-      setVendorMap({});
+    if (target !== 'revendeur' || !vendorId) {
       setAgreedMap({});
       return;
     }
     supabase()
       .from('vendor_stock')
-      .select('variant_id,qty,agreed_price')
+      .select('variant_id,agreed_price')
       .eq('vendor_id', vendorId)
       .in('variant_id', variants.map((v) => v.id))
       .then(({ data }) => {
-        const m: Record<string, number> = {};
         const a: Record<string, number> = {};
         (data || []).forEach((r: any) => {
-          m[r.variant_id] = r.qty;
           if (r.agreed_price != null) a[r.variant_id] = Number(r.agreed_price);
         });
-        setVendorMap(m);
         setAgreedMap(a);
+        // Applique les prix convenus aux lignes déjà présentes
+        setLines((prev) => prev.map((l) => (a[l.variant.id] != null ? { ...l, price: a[l.variant.id] } : l)));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, vendorId]);
 
-  const dispo = (v: Variant) => (target === 'vendeur' ? vendorMap[v.id] || 0 : v.stock);
+  // Les deux flux puisent dans le stock du dépôt
+  const dispo = (v: Variant) => v.stock;
   const inCart = (v: Variant) => lines.find((l) => l.variant.id === v.id)?.qty || 0;
 
   function tapVariant(v: Variant) {
@@ -94,7 +99,7 @@ export default function QuickSale({
         return next;
       }
       if (max < 1) return prev;
-      const defaultPrice = target === 'vendeur' && agreedMap[v.id] != null ? agreedMap[v.id] : Number(product.sale_price);
+      const defaultPrice = target === 'revendeur' && agreedMap[v.id] != null ? agreedMap[v.id] : Number(product.sale_price);
       return [...prev, { variant: v, qty: 1, price: defaultPrice }];
     });
   }
@@ -119,6 +124,12 @@ export default function QuickSale({
   const benefice = totalVente - totalAchat;
   const nbPieces = lines.reduce((s, l) => s + l.qty, 0);
   const catalogue = Number(product.sale_price);
+  const lotDue =
+    dueType === 'montant'
+      ? Math.max(0, Number(dueAmount) || 0)
+      : dueType === 'pourcentage'
+        ? Math.round(totalVente * (Math.max(0, Number(dueRate) || 0))) / 100
+        : null;
 
   async function createContact() {
     const n = newName.trim();
@@ -160,10 +171,47 @@ export default function QuickSale({
       setError('Sélectionnez au moins une déclinaison.');
       return;
     }
-    if (target === 'vendeur' && !vendorId) {
-      setError('Choisissez ou créez le revendeur.');
+
+    /* ----- Remise de lot au revendeur (flux principal) ----- */
+    if (target === 'revendeur') {
+      if (!vendorId) {
+        setError('Choisissez ou créez le revendeur.');
+        return;
+      }
+      if (dueType === 'montant' && !Number(dueAmount)) {
+        setError('Indiquez le montant à reverser pour ce lot.');
+        return;
+      }
+      if (dueType === 'pourcentage' && !Number(dueRate)) {
+        setError('Indiquez le pourcentage à reverser.');
+        return;
+      }
+      setBusy(true);
+      setError('');
+      const { error: err } = await supabase().rpc('allocate_to_vendor', {
+        p_vendor_id: vendorId,
+        p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, agreed_price: l.price })),
+        p_direction: 'sortie',
+        p_due_type: dueType,
+        p_due_rate: dueType === 'pourcentage' ? Number(dueRate) : null,
+        p_due_amount: lotDue,
+      });
+      setBusy(false);
+      if (err) {
+        setError(err.message);
+        return;
+      }
+      setDone({
+        kind: 'lot',
+        vendorId,
+        vendorName: vendors.find((v) => v.id === vendorId)?.name || 'Revendeur',
+        pieces: nbPieces,
+        value: totalVente,
+      });
       return;
     }
+
+    /* ----- Vente au détail (occasionnelle) ----- */
     if (method === 'credit' && !customerId) {
       setError('Le crédit nécessite un client identifié.');
       return;
@@ -172,10 +220,10 @@ export default function QuickSale({
     setError('');
     const { data: saleId, error: err } = await supabase().rpc('process_sale', {
       p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, unit_price: l.price })),
-      p_payment_method: target === 'vendeur' && method === 'credit' ? 'especes' : method,
-      p_customer_id: target === 'client' && customerId ? customerId : null,
+      p_payment_method: method,
+      p_customer_id: customerId || null,
       p_paid_amount: method === 'credit' ? 0 : totalVente,
-      p_vendor_id: target === 'vendeur' ? vendorId : null,
+      p_vendor_id: null,
       p_discount: 0,
     });
     setBusy(false);
@@ -185,6 +233,7 @@ export default function QuickSale({
     }
     const { data: saleRow } = await supabase().from('sales').select('number,created_at').eq('id', saleId).single();
     setDone({
+      kind: 'vente',
       saleId: saleId as string,
       number: saleRow?.number || 0,
       date: saleRow?.created_at || new Date().toISOString(),
@@ -201,54 +250,73 @@ export default function QuickSale({
           <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#34d399,#059669)' }}>
             <IconCheck className="w-7 h-7 text-white" />
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-ink">Vente enregistrée</h3>
-            <p className="text-crystal-800 text-lg font-semibold mt-1">{fmt(done.total)}</p>
-            <p className="text-emerald-600 text-sm">Bénéfice : {fmt(done.benefice)}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Link href={`/factures/${done.saleId}`} className="btn-primary">
-              <IconInvoice className="w-5 h-5" /> Facture
-            </Link>
-            <button
-              className="btn-glass"
-              onClick={() =>
-                shareTicket({
-                  number: done.number,
-                  date: done.date,
-                  items: lines.map((l) => ({ name: product.name, label: variantLabel(l.variant), qty: l.qty, unit_price: l.price })),
-                  total: done.total,
-                  method,
-                  vendorName: target === 'vendeur' ? vendors.find((v) => v.id === vendorId)?.name || null : null,
-                })
-              }
-            >
-              <IconShare /> Ticket
-            </button>
-          </div>
-          <button className="btn-accent w-full" onClick={onDone}>Fermer</button>
+          {done.kind === 'lot' ? (
+            <>
+              <div>
+                <h3 className="text-xl font-bold text-ink">Lot remis à {done.vendorName}</h3>
+                <p className="text-crystal-800 text-lg font-semibold mt-1">
+                  {fmtQty(done.pieces)} pièce{done.pieces > 1 ? 's' : ''} · {fmt(done.value)}
+                </p>
+                <p className="text-ink/55 text-sm">Le stock du dépôt a été transféré au revendeur.</p>
+              </div>
+              <Link href={`/vendeurs/${done.vendorId}`} className="btn-primary w-full">
+                Voir la fiche revendeur
+              </Link>
+              <button className="btn-accent w-full" onClick={onDone}>Fermer</button>
+            </>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-xl font-bold text-ink">Vente enregistrée</h3>
+                <p className="text-crystal-800 text-lg font-semibold mt-1">{fmt(done.total)}</p>
+                <p className="text-emerald-600 text-sm">Bénéfice : {fmt(done.benefice)}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Link href={`/factures/${done.saleId}`} className="btn-primary">
+                  <IconInvoice className="w-5 h-5" /> Facture
+                </Link>
+                <button
+                  className="btn-glass"
+                  onClick={() =>
+                    done.kind === 'vente' &&
+                    shareTicket({
+                      number: done.number,
+                      date: done.date,
+                      items: lines.map((l) => ({ name: product.name, label: variantLabel(l.variant), qty: l.qty, unit_price: l.price })),
+                      total: done.total,
+                      method,
+                      vendorName: null,
+                    })
+                  }
+                >
+                  <IconShare /> Ticket
+                </button>
+              </div>
+              <button className="btn-accent w-full" onClick={onDone}>Fermer</button>
+            </>
+          )}
         </div>
       </div>
     );
 
-  /* ---------- Formulaire de vente ---------- */
+  /* ---------- Formulaire ---------- */
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
       <div
         className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-bold text-ink">Vendre — {product.name}</h3>
+        <h3 className="text-lg font-bold text-ink">Sortie de stock — {product.name}</h3>
 
-        {/* Pour qui ? */}
+        {/* Pour qui ? Revendeur d'abord : c'est le flux principal du grossiste */}
         <div className="grid grid-cols-2 gap-2">
-          {(['client', 'vendeur'] as const).map((t) => (
+          {(['revendeur', 'client'] as const).map((t) => (
             <button
               key={t}
               className={target === t ? 'btn-primary !py-2.5' : 'btn-glass !py-2.5'}
               onClick={() => { setTarget(t); setNewMode(false); setError(''); }}
             >
-              {t === 'client' ? 'Client (dépôt)' : 'Revendeur'}
+              {t === 'revendeur' ? 'Revendeur (lot)' : 'Client (détail)'}
             </button>
           ))}
         </div>
@@ -296,10 +364,10 @@ export default function QuickSale({
           </div>
         )}
 
-        {/* Déclinaisons : tap pour ajouter (plusieurs possibles) */}
+        {/* Déclinaisons : le stock affiché est toujours celui du dépôt */}
         <div>
           <p className="text-ink/55 text-xs mb-1.5">
-            Touchez les déclinaisons vendues — plusieurs possibles, chaque touche ajoute une pièce :
+            Touchez les déclinaisons à sortir du dépôt, puis saisissez les quantités :
           </p>
           <div className="flex flex-wrap gap-1.5">
             {variants.map((v) => {
@@ -312,29 +380,35 @@ export default function QuickSale({
                   disabled={d === 0}
                   onClick={() => tapVariant(v)}
                 >
-                  {variantLabel(v)} {n > 0 ? `×${n}` : `(${d})`}
+                  {variantLabel(v)} {n > 0 ? `×${fmtQty(n)}` : `(${fmtQty(d)})`}
                 </button>
               );
             })}
           </div>
-          {target === 'vendeur' && !vendorId && (
-            <p className="text-orange-700/90 text-xs mt-1.5">Choisissez d&apos;abord le revendeur pour voir son stock.</p>
-          )}
         </div>
 
-        {/* Lignes du panier */}
+        {/* Lignes du panier — quantité saisissable pour les gros volumes */}
         {lines.length > 0 && (
           <ul className="space-y-2.5">
             {lines.map((l) => (
               <li key={l.variant.id} className="flex items-center gap-2">
-                <span className="text-sm font-medium text-ink w-20 shrink-0 truncate">{variantLabel(l.variant)}</span>
+                <span className="text-sm font-medium text-ink w-16 shrink-0 truncate">{variantLabel(l.variant)}</span>
                 <div className="flex items-center gap-1 shrink-0">
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty - 1)}>−</button>
-                  <span className="w-6 text-center font-bold text-ink text-sm">{l.qty}</span>
+                  <input
+                    className="input !w-16 !py-1 !px-1 !rounded-lg text-center text-sm font-bold"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={dispo(l.variant)}
+                    value={l.qty}
+                    onChange={(e) => setQty(l.variant.id, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                    aria-label="Quantité"
+                  />
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty + 1)}>+</button>
                 </div>
                 <input
-                  className="input !py-1 !px-2 !rounded-lg text-sm text-center flex-1"
+                  className="input !py-1 !px-2 !rounded-lg text-sm text-center flex-1 min-w-0"
                   type="number"
                   step="0.01"
                   inputMode="decimal"
@@ -353,45 +427,103 @@ export default function QuickSale({
           </ul>
         )}
 
-        {/* Résumé bénéfice */}
+        {/* Résumé */}
         {lines.length > 0 && (
           <div className="glass !rounded-2xl p-3 grid grid-cols-4 text-center">
             <div>
               <p className="text-ink/50 text-[11px]">Pièces</p>
-              <p className="font-semibold text-ink text-sm">{nbPieces}</p>
+              <p className="font-semibold text-ink text-sm">{fmtQty(nbPieces)}</p>
             </div>
             <div>
               <p className="text-ink/50 text-[11px]">Achat</p>
               <p className="font-semibold text-ink text-sm">{fmt(totalAchat)}</p>
             </div>
             <div>
-              <p className="text-ink/50 text-[11px]">Vente</p>
+              <p className="text-ink/50 text-[11px]">{target === 'revendeur' ? 'Valeur lot' : 'Vente'}</p>
               <p className="font-semibold text-ink text-sm">{fmt(totalVente)}</p>
             </div>
             <div>
               <p className="text-ink/50 text-[11px]">Bénéfice</p>
-              <p className={`font-bold text-sm ${benefice >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(benefice)}</p>
+              <p className={`font-bold text-sm ${benefice >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {target === 'revendeur' && lotDue != null ? fmt(lotDue - totalAchat) : fmt(benefice)}
+              </p>
             </div>
           </div>
         )}
 
-        {/* Paiement */}
-        <div className="grid grid-cols-3 gap-2">
-          {(['especes', 'carte', 'credit'] as const).map((m) => (
-            <button
-              key={m}
-              className={m === method ? 'btn-primary !py-2.5' : 'btn-glass !py-2.5'}
-              disabled={m === 'credit' && target === 'vendeur'}
-              onClick={() => setMethod(m)}
-            >
-              {m === 'especes' ? 'Espèces' : m === 'carte' ? 'Carte' : 'Crédit'}
-            </button>
-          ))}
-        </div>
+        {/* Revendeur : mode de reversement convenu / Client : paiement */}
+        {target === 'revendeur' ? (
+          lines.length > 0 && (
+            <div>
+              <p className="section-title !text-xs mb-2">Reversement convenu</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ['ventes', 'Au réel'],
+                  ['montant', 'Montant fixe'],
+                  ['pourcentage', '% du lot'],
+                ] as const).map(([t, label]) => (
+                  <button
+                    key={t}
+                    className={dueType === t ? 'btn-primary !py-2 text-xs' : 'btn-glass !py-2 text-xs'}
+                    onClick={() => setDueType(t)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {dueType === 'ventes' && (
+                <p className="text-ink/45 text-xs mt-2">Le dû suivra les ventes que vous enregistrerez pour ce revendeur.</p>
+              )}
+              {dueType === 'montant' && (
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    className="input !py-2 flex-1 text-center"
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="Montant dû pour ce lot"
+                    value={dueAmount}
+                    onChange={(e) => setDueAmount(e.target.value)}
+                  />
+                  <span className="text-ink/40 text-sm">€</span>
+                </div>
+              )}
+              {dueType === 'pourcentage' && (
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    className="input !py-2 w-24 text-center"
+                    type="number"
+                    step="1"
+                    inputMode="decimal"
+                    placeholder="%"
+                    value={dueRate}
+                    onChange={(e) => setDueRate(e.target.value)}
+                  />
+                  <span className="text-ink/40 text-sm">%</span>
+                  {[50, 60, 70].map((p) => (
+                    <button key={p} className="chip active:scale-95" onClick={() => setDueRate(String(p))}>{p} %</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {(['especes', 'carte', 'credit'] as const).map((m) => (
+              <button
+                key={m}
+                className={m === method ? 'btn-primary !py-2.5' : 'btn-glass !py-2.5'}
+                onClick={() => setMethod(m)}
+              >
+                {m === 'especes' ? 'Espèces' : m === 'carte' ? 'Carte' : 'Crédit'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {error && <p className="text-rose-600 text-sm">{error}</p>}
         <button className="btn-accent w-full py-4 justify-between px-6" onClick={submit} disabled={busy || lines.length === 0}>
-          <span>{busy ? 'Traitement…' : 'Valider la vente'}</span>
+          <span>{busy ? 'Traitement…' : target === 'revendeur' ? 'Remettre le lot' : 'Valider la vente'}</span>
           <span>{fmt(totalVente)}</span>
         </button>
       </div>

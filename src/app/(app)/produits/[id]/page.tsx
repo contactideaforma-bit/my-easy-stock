@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDate, variantLabel } from '@/lib/utils';
+import { fmt, fmtDate, fmtQty, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
 import QuickSale from '@/components/QuickSale';
 import { IconBack, IconTag, IconTrash, IconScan, IconCash } from '@/components/Icons';
@@ -24,8 +24,8 @@ const REASON_LABELS: Record<string, string> = {
   inventaire: 'Inventaire',
   ajustement: 'Ajustement',
   retour: 'Retour / annulation',
-  affectation: 'Lot → vendeur',
-  retour_vendeur: 'Retour vendeur',
+  affectation: 'Lot → revendeur',
+  retour_vendeur: 'Retour revendeur',
 };
 
 export default function ProduitDetailPage() {
@@ -127,7 +127,7 @@ export default function ProduitDetailPage() {
             {product.categories?.name && <span className="chip">{product.categories.name}</span>}
             {product.brand && <span className="chip">{product.brand}</span>}
             <span className={`chip ${total === 0 ? 'chip-danger' : total <= product.low_stock_threshold ? 'chip-warn' : 'chip-ok'}`}>
-              {total} en stock
+              {fmtQty(total)} en stock
             </span>
           </div>
 
@@ -156,9 +156,9 @@ export default function ProduitDetailPage() {
         </div>
       </div>
 
-      {/* Vendre */}
+      {/* Sortie de stock : lot revendeur (flux principal) ou vente détail */}
       <button className="btn-accent w-full py-4" onClick={() => setSelling(true)} disabled={total === 0}>
-        <IconCash className="w-5 h-5" /> Vendre ce produit
+        <IconCash className="w-5 h-5" /> Remettre un lot · Vendre
       </button>
 
       {/* Variantes */}
@@ -181,7 +181,19 @@ export default function ProduitDetailPage() {
                   <IconScan className="w-4 h-4" />
                 </button>
                 <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id || v.stock === 0} onClick={() => adjust(v.id, -1)}>−</button>
-                <span className={`w-10 text-center font-bold ${v.stock === 0 ? 'text-rose-600' : 'text-ink'}`}>{v.stock}</span>
+                <button
+                  className={`min-w-[3.5rem] px-1 text-center font-bold underline decoration-dotted decoration-ink/30 underline-offset-4 ${v.stock === 0 ? 'text-rose-600' : 'text-ink'}`}
+                  title="Saisir le stock exact"
+                  disabled={busy === v.id}
+                  onClick={() => {
+                    const input = prompt(`Nouveau stock pour ${variantLabel(v)} :`, String(v.stock));
+                    if (input == null) return;
+                    const next = Math.max(0, Math.floor(Number(input) || 0));
+                    if (next !== v.stock) adjust(v.id, next - v.stock);
+                  }}
+                >
+                  {fmtQty(v.stock)}
+                </button>
                 <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id} onClick={() => adjust(v.id, 1)}>+</button>
               </div>
             </li>
@@ -206,14 +218,14 @@ export default function ProduitDetailPage() {
                   <span className="text-ink/40"> · {fmtDate(m.created_at)}</span>
                 </span>
                 <span className={`font-semibold shrink-0 ml-2 ${m.qty_change > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {m.qty_change > 0 ? '+' : ''}{m.qty_change}
+                  {m.qty_change > 0 ? '+' : ''}{fmtQty(m.qty_change)}
                 </span>
               </li>
             ))}
           </ul>
         )}
         <p className="text-ink/40 text-xs mt-3">
-          Les ventes faites par les vendeurs décomptent leur stock, pas celui du dépôt — elles apparaissent sur leur fiche.
+          Les ventes faites par les revendeurs décomptent leur stock, pas celui du dépôt — elles apparaissent sur leur fiche.
         </p>
       </section>
 

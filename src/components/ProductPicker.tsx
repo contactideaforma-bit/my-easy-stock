@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fmt, variantLabel } from '@/lib/utils';
+import { fmt, fmtQty, variantLabel } from '@/lib/utils';
 import { IconSearch, IconCheck } from '@/components/Icons';
 import type { Category, Product, Variant } from '@/lib/types';
 
@@ -141,7 +141,7 @@ export default function ProductPicker({
                         disabled={d === 0}
                         onClick={() => pick(p, v)}
                       >
-                        {variantLabel(v)} ({d})
+                        {variantLabel(v)} ({fmtQty(d)})
                       </button>
                     );
                   })}

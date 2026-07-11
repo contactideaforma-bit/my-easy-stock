@@ -272,8 +272,8 @@ export default function CaissePage() {
     <div className="space-y-4 pb-40">
       <header className="flex items-center justify-between gap-3 pt-2">
         <div>
-          <h1 className="text-2xl font-bold text-ink">Vendre</h1>
-          <p className="text-ink/50 text-xs">Scannez ou choisissez les articles, puis encaissez</p>
+          <h1 className="text-2xl font-bold text-ink">Caisse — détail</h1>
+          <p className="text-ink/50 text-xs">Vente au détail occasionnelle · scannez, choisissez, encaissez</p>
         </div>
         <select
           className="input !w-auto !py-2 !px-3 text-sm font-medium"
@@ -370,7 +370,15 @@ export default function CaissePage() {
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty - 1)}>−</button>
-                  <span className="w-7 text-center font-bold text-ink">{l.qty}</span>
+                  <input
+                    className="input !w-14 !py-1 !px-1 !rounded-lg text-center font-bold"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={l.qty}
+                    onChange={(e) => setQty(l.variant.id, Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                    aria-label="Quantité"
+                  />
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty + 1)}>+</button>
                   <button className="text-rose-500/70 ml-1" onClick={() => setQty(l.variant.id, 0)}>
                     <IconTrash className="w-4 h-4" />

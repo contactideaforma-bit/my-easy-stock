@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDate, variantLabel, startOfDay } from '@/lib/utils';
+import { fmt, fmtDate, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
 import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
 
 type LowStock = { id: string; size: string | null; color: string | null; stock: number; products: { name: string; low_stock_threshold: number } };
@@ -109,11 +109,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-3 gap-3">
         <div className="glass p-3">
           <p className="text-ink/55 text-[11px]">Stock dépôt</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{kpi.stockDepot}</p>
+          <p className="text-lg font-bold text-ink mt-0.5">{fmtQty(kpi.stockDepot)}</p>
         </div>
         <div className="glass p-3">
-          <p className="text-ink/55 text-[11px]">Chez vendeurs</p>
-          <p className="text-lg font-bold text-ink mt-0.5">{kpi.stockVendeurs}</p>
+          <p className="text-ink/55 text-[11px]">Chez revendeurs</p>
+          <p className="text-lg font-bold text-ink mt-0.5">{fmtQty(kpi.stockVendeurs)}</p>
         </div>
         <div className="glass p-3">
           <p className="text-ink/55 text-[11px]">Valeur dépôt</p>
@@ -121,24 +121,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Actions rapides */}
+      {/* Actions rapides — flux grossiste d'abord, détail en second */}
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/caisse" className="btn-accent py-4">
-          <IconCash className="w-5 h-5" /> Vendre
+        <Link href="/vendeurs" className="btn-accent py-4">
+          <IconUsers className="w-5 h-5" /> Remettre un lot
         </Link>
         <Link href="/produits/nouveau" className="btn-glass py-4">
           <IconPlus className="w-5 h-5" /> Produit
         </Link>
       </div>
+      <Link href="/caisse" className="block text-center text-ink/50 text-xs -mt-2">
+        <IconCash className="w-3.5 h-3.5 inline mr-1" />Vente au détail (occasionnelle) →
+      </Link>
 
       {/* Ventes du mois par vendeur */}
       <section className="glass p-4">
         <div className="flex items-center gap-2 mb-3">
           <IconUsers className="w-5 h-5 text-crystal-600" />
-          <h2 className="section-title">Ce mois, par vendeur</h2>
+          <h2 className="section-title">Ce mois, par revendeur</h2>
         </div>
         {vendorLines.length === 0 ? (
-          <p className="text-ink/55 text-sm">Créez vos vendeurs pour suivre leurs ventes.</p>
+          <p className="text-ink/55 text-sm">Créez vos revendeurs pour suivre leurs ventes.</p>
         ) : (
           <ul className="space-y-3">
             {vendorLines.map((l) => (
@@ -146,7 +149,7 @@ export default function Dashboard() {
                 <Link href={l.id === 'depot' ? '/produits' : `/vendeurs/${l.id}`} className="block">
                   <div className="flex items-center justify-between text-sm mb-1">
                     <span className="text-ink font-medium">
-                      {l.name} <span className="text-ink/45 font-normal">· {l.nb} vente{l.nb > 1 ? 's' : ''} · {l.pieces} pcs</span>
+                      {l.name} <span className="text-ink/45 font-normal">· {l.nb} vente{l.nb > 1 ? 's' : ''} · {fmtQty(l.pieces)} pcs</span>
                     </span>
                     <span className="font-semibold text-ink">{fmt(l.ca)}</span>
                   </div>
@@ -177,7 +180,7 @@ export default function Dashboard() {
                   {v.products.name} <span className="text-ink/55">· {variantLabel(v)}</span>
                 </span>
                 <span className={`chip ${v.stock === 0 ? 'chip-danger' : 'chip-warn'}`}>
-                  {v.stock === 0 ? 'Épuisé' : `${v.stock} rest.`}
+                  {v.stock === 0 ? 'Épuisé' : `${fmtQty(v.stock)} rest.`}
                 </span>
               </li>
             ))}
