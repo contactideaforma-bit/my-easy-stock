@@ -46,7 +46,7 @@ Depuis la migration 008, **chaque compte est cloisonné** : ses produits, ventes
 ## Compte de démonstration
 
 1. Supabase → Authentication → Users → **Add user** : créer le compte démo (ex. `demo@votre-domaine.fr`) — cocher « Auto Confirm User »
-2. Ouvrir `supabase/seed_demo.sql`, remplacer l'email en haut du script par celui du compte démo, puis l'exécuter dans le SQL Editor — la boutique fictive « Maison Riviera » (≈100 produits illustrés, 12 clients, 6 revendeurs, 48 ventes, achats) est créée **dans ce compte uniquement**, sans toucher aux autres
+2. Ouvrir `supabase/seed_demo.sql`, remplacer l'email en haut du script par celui du compte démo, puis l'exécuter dans le SQL Editor — la boutique fictive « Maison Riviera » (10 références grossiste × ~300 déclinaisons, ≈6 900 pièces, 12 clients, 6 revendeurs, 48 ventes, achats) est créée **dans ce compte uniquement**, sans toucher aux autres
 3. Transmettre les identifiants au prospect, puis changer le mot de passe après la démo : Authentication → Users → utilisateur demo → « ⋯ » → Update password
 
 ## Stack

@@ -2,8 +2,9 @@
 -- MY EASY STOCK — Jeu de données DÉMO « Maison Riviera »
 -- À exécuter dans Supabase : SQL Editor > New query > Run
 --
--- ⚠️ Ce script AJOUTE des données fictives (~100 produits, clients,
---    revendeurs, ventes, achats) à la base actuelle, aux côtés des
+-- ⚠️ Ce script AJOUTE des données fictives (10 références × ~350
+--    déclinaisons, plusieurs milliers de pièces, clients, revendeurs,
+--    ventes, achats) à la base actuelle, aux côtés des
 --    données existantes. Il remplace aussi le profil société par la
 --    société fictive « Maison Riviera » (re-personnalisable ensuite
 --    depuis Plus > Profil société).
@@ -20,7 +21,10 @@ declare
   v_demo_email text := 'webideaforma@gmail.com';   -- ⬅️ EMAIL DU COMPTE DÉMO
   v_owner uuid;
   cat record;
-  imgs text[];
+  spec jsonb;
+  v_cat uuid;
+  v_color text;
+  v_size text;
   pnames text[];
   brands text[] := array['Riviera','Milano','Urban Nord','Atelier 12','Costa','Nova','Saint-Louis','Belleface'];
   colors_all text[] := array['Noir','Blanc','Beige','Bleu marine','Bleu','Rouge','Vert','Rose','Gris','Marron','Kaki','Bordeaux'];
@@ -80,94 +84,82 @@ begin
   select unnest(array['T-shirts','Pantalons','Robes','Vestes','Baskets','Chaussures ville','Sandales','Accessoires']), v_owner
   where not exists (select 1 from categories where owner_id = v_owner);
 
-  -- ---------- PRODUITS (~100) ----------
-  for cat in select * from categories where owner_id = v_owner order by name loop
-    -- Photos Unsplash fixes, cohérentes avec la catégorie (cyclées par produit)
-    imgs := case cat.name
-      when 'T-shirts' then array[
-        'photo-1521572163474-6864f9cf17ab',  -- t-shirt blanc plié
-        'photo-1576566588028-4147f3842f27']  -- t-shirt porté uni
-      when 'Pantalons' then array[
-        'photo-1541099649105-f69ad21f3246',  -- jean plié sur fond neutre
-        'photo-1542272604-787c3835535d']     -- pile de jeans
-      when 'Robes' then array[
-        'photo-1595777457583-95e059d581b8',  -- robe fleurie sur cintre
-        'photo-1496747611176-843222e1e57c']  -- robe élégante
-      when 'Vestes' then array[
-        'photo-1551028719-00167b16eac5',     -- veste cuir marron
-        'photo-1539533018447-63fcce2678e3']  -- manteau long
-      when 'Baskets' then array[
-        'photo-1542291026-7eec264c27ff',     -- basket running rouge
-        'photo-1549298916-b41d501d3772',     -- basket blanche
-        'photo-1560769629-975ec94e6a86',     -- basket toile
-        'photo-1595950653106-6c9ebd614d3a',  -- paire de baskets
-        'photo-1600185365483-26d7a4cc7519']  -- basket lifestyle
-      when 'Chaussures ville' then array[
-        'photo-1543163521-1bf539c55dd2',     -- escarpins cuir
-        'photo-1560343090-f0409e92791a']     -- chaussure produit fond blanc
-      when 'Sandales' then array[
-        'photo-1603487742131-4160ec999306']  -- sandales été
-      when 'Accessoires' then array[
-        'photo-1584917865442-de89df76afd3',  -- sac à main cuir
-        'photo-1553062407-98eeb64c6a62']     -- sac / maroquinerie
-      else array['photo-1521572163474-6864f9cf17ab'] end;
+  -- ---------- PRODUITS : 10 références × nombreuses déclinaisons ----------
+  -- Structure type grossiste : peu de modèles, beaucoup de couleurs et tailles,
+  -- 10 à 50 pièces par déclinaison (plusieurs milliers de pièces au total).
+  for spec in select * from jsonb_array_elements('[
+    {"name":"Baskets Runner X","brand":"Nova","cat":"Baskets","purchase":12.50,"sale":29.50,"min":25,"max":35,"pack":12,"qty":20,
+     "sizes":["35","36","37","38","39","40"],
+     "colors":["Noir","Blanc","Rouge","Bleu","Bleu marine","Vert","Gris","Rose","Jaune","Bordeaux"],
+     "img":"photo-1542291026-7eec264c27ff"},
+    {"name":"Baskets toile basses","brand":"Urban Nord","cat":"Baskets","purchase":8.90,"sale":22.00,"min":18,"max":26,"pack":12,"qty":20,
+     "sizes":["36","37","38","39","40","41"],
+     "colors":["Noir","Blanc","Beige","Bleu","Rouge","Kaki","Rose","Gris"],
+     "img":"photo-1549298916-b41d501d3772"},
+    {"name":"Sandales plates été","brand":"Costa","cat":"Sandales","purchase":6.40,"sale":16.50,"min":13,"max":19,"pack":10,"qty":15,
+     "sizes":["36","37","38","39","40","41"],
+     "colors":["Noir","Doré","Argenté","Beige","Blanc","Marron"],
+     "img":"photo-1603487742131-4160ec999306"},
+    {"name":"T-shirt coton premium","brand":"Riviera","cat":"T-shirts","purchase":3.20,"sale":9.50,"min":7.5,"max":12,"pack":25,"qty":30,
+     "sizes":["XS","S","M","L","XL","XXL"],
+     "colors":["Blanc","Noir","Gris","Bleu marine","Rouge","Vert","Jaune","Rose"],
+     "img":"photo-1521572163474-6864f9cf17ab"},
+    {"name":"Jean slim stretch","brand":"Milano","cat":"Pantalons","purchase":11.50,"sale":27.00,"min":23,"max":32,"pack":10,"qty":25,
+     "sizes":["36","38","40","42","44","46"],
+     "colors":["Bleu","Bleu marine","Noir","Gris"],
+     "img":"photo-1541099649105-f69ad21f3246"},
+    {"name":"Robe été fleurie","brand":"Belleface","cat":"Robes","purchase":8.40,"sale":21.50,"min":18,"max":25,"pack":8,"qty":15,
+     "sizes":["36","38","40","42","44"],
+     "colors":["Multicolore","Rose","Bleu","Rouge","Blanc","Vert"],
+     "img":"photo-1595777457583-95e059d581b8"},
+    {"name":"Sweat capuche molleton","brand":"Urban Nord","cat":"T-shirts","purchase":9.60,"sale":24.00,"min":20,"max":28,"pack":12,"qty":25,
+     "sizes":["S","M","L","XL","XXL"],
+     "colors":["Noir","Gris","Bordeaux","Bleu marine","Kaki","Blanc"],
+     "img":"photo-1576566588028-4147f3842f27"},
+    {"name":"Veste simili cuir","brand":"Saint-Louis","cat":"Vestes","purchase":18.90,"sale":45.00,"min":39,"max":55,"pack":6,"qty":10,
+     "sizes":["S","M","L","XL"],
+     "colors":["Noir","Marron","Bordeaux"],
+     "img":"photo-1551028719-00167b16eac5"},
+    {"name":"Sac à main city","brand":"Riviera","cat":"Accessoires","purchase":7.80,"sale":19.50,"min":16,"max":24,"pack":10,"qty":40,
+     "sizes":[],
+     "colors":["Noir","Marron","Beige","Rouge","Bleu marine","Doré","Blanc","Rose"],
+     "img":"photo-1584917865442-de89df76afd3"},
+    {"name":"Casquette brodée","brand":"Nova","cat":"Accessoires","purchase":2.60,"sale":8.00,"min":6,"max":10,"pack":24,"qty":50,
+     "sizes":[],
+     "colors":["Noir","Blanc","Rouge","Bleu","Bleu marine","Vert","Gris","Rose","Jaune","Kaki"],
+     "img":"photo-1553062407-98eeb64c6a62"}
+  ]'::jsonb) loop
+    i := i + 1;
 
-    pnames := case cat.name
-      when 'T-shirts' then array['T-shirt coton bio','T-shirt col V','T-shirt oversize','T-shirt rayé marin','T-shirt imprimé palme','Polo piqué','T-shirt manches longues','T-shirt sport respirant','T-shirt col roulé léger','T-shirt poche poitrine','T-shirt délavé vintage','T-shirt enfant licorne','Débardeur côtelé']
-      when 'Pantalons' then array['Jean slim brut','Jean regular délavé','Chino beige','Pantalon cargo','Jogging molleton','Pantalon tailleur','Jean mom taille haute','Short en jean','Pantalon lin été','Legging sport','Jean skinny noir','Pantalon large fluide','Bermuda cargo']
-      when 'Robes' then array['Robe été fleurie','Robe longue bohème','Robe portefeuille','Robe pull côtelée','Robe chemise','Robe de soirée satinée','Robe midi plissée','Robe droite bureau','Robe volants','Robe dos nu','Robe tricot hiver','Robe enfant princesse','Combinaison pantalon']
-      when 'Vestes' then array['Veste en jean','Blouson bomber','Doudoune légère','Manteau long laine','Blazer cintré','Veste simili cuir','Coupe-vent pliable','Gilet sans manches','Cardigan grosse maille','Trench beige','Parka fourrée','Veste de survêtement','Kimono léger']
-      when 'Baskets' then array['Baskets Runner','Baskets toile basses','Baskets montantes','Baskets running pro','Baskets plateforme','Baskets cuir blanches','Baskets enfant scratch','Baskets slip-on','Baskets trail','Baskets rétro 90s','Baskets chaussette','Baskets éco-recyclées']
-      when 'Chaussures ville' then array['Derbies cuir','Mocassins souples','Bottines Chelsea','Richelieu vernis','Bottes cavalières','Escarpins 7 cm','Ballerines classiques','Chaussures bateau','Boots desert','Babies vernies','Mules talon carré','Bottines lacets']
-      when 'Sandales' then array['Sandales plates cuir','Sandales compensées','Tongs plage','Sandales bride cheville','Claquettes sport','Sandales enfant','Espadrilles unies','Sandales talon bloc','Mules plates','Sandales randonnée','Nu-pieds perles','Sabots été']
-      when 'Accessoires' then array['Sac à main cuir','Sac banane','Ceinture réversible','Écharpe laine','Casquette brodée','Bonnet pompon','Portefeuille zippé','Sac cabas toile','Foulard soie','Gants tactiles','Chaussettes lot de 5','Cabas paille','Pochette soirée']
-      else array['Article'] end;
+    select id into v_cat from categories where owner_id = v_owner and name = spec->>'cat' limit 1;
 
-    sizes_v := case
-      when cat.name in ('Baskets','Chaussures ville') then array['39','40','41','42','43','44']
-      when cat.name = 'Sandales' then array['36','37','38','39','40','41']
-      when cat.name = 'Robes' then array['36','38','40','42']
-      when cat.name = 'Pantalons' then array['38','40','42','44']
-      when cat.name = 'Accessoires' then array[]::text[]
-      else array['S','M','L','XL'] end;
+    insert into products (name, brand, category_id, purchase_price, sale_price, price_min, price_max, pack_size, low_stock_threshold, image_url)
+    values (
+      spec->>'name',
+      spec->>'brand',
+      v_cat,
+      (spec->>'purchase')::numeric,
+      (spec->>'sale')::numeric,
+      (spec->>'min')::numeric,
+      (spec->>'max')::numeric,
+      (spec->>'pack')::int,
+      5,
+      'https://images.unsplash.com/' || (spec->>'img') || '?w=480&q=80&auto=format&fit=crop'
+    )
+    returning id into v_pid;
 
-    foreach n in array pnames loop
-      i := i + 1;
-      v_purchase := round((3 + random() * 22)::numeric, 2);
-      v_sale := round((v_purchase * (1.9 + random() * 1.1))::numeric / 0.5) * 0.5;
-
-      insert into products (name, brand, category_id, purchase_price, sale_price, price_min, price_max, low_stock_threshold, image_url)
-      values (
-        n,
-        brands[1 + floor(random() * array_length(brands, 1))::int],
-        cat.id,
-        v_purchase,
-        v_sale,
-        round(v_sale * 0.85 / 0.5) * 0.5,   -- prix de vente minimum conseillé
-        round(v_sale * 1.20 / 0.5) * 0.5,   -- prix de vente maximum conseillé
-        3,
-        'https://images.unsplash.com/' || imgs[1 + (i % array_length(imgs, 1))] || '?w=480&q=80&auto=format&fit=crop'
-      )
-      returning id into v_pid;
-
-      -- 2 couleurs distinctes
-      c1 := colors_all[1 + floor(random() * 12)::int];
-      loop
-        c2 := colors_all[1 + floor(random() * 12)::int];
-        exit when c2 <> c1;
-      end loop;
-
-      if array_length(sizes_v, 1) is null then
+    -- Une variante par couleur × taille, avec la même quantité de départ
+    j := 0;
+    for v_color in select jsonb_array_elements_text(spec->'colors') loop
+      if jsonb_array_length(spec->'sizes') = 0 then
+        j := j + 1;
         insert into product_variants (product_id, size, color, sku, stock)
-        values
-          (v_pid, null, c1, 'DEMO-' || i || '-A', 3 + floor(random() * 10)::int),
-          (v_pid, null, c2, 'DEMO-' || i || '-B', 3 + floor(random() * 10)::int);
+        values (v_pid, null, v_color, 'DEMO-' || i || '-' || j, (spec->>'qty')::int);
       else
-        for j in 1 .. array_length(sizes_v, 1) loop
+        for v_size in select jsonb_array_elements_text(spec->'sizes') loop
+          j := j + 1;
           insert into product_variants (product_id, size, color, sku, stock)
-          values
-            (v_pid, sizes_v[j], c1, 'DEMO-' || i || '-' || j || 'A', 1 + floor(random() * 8)::int),
-            (v_pid, sizes_v[j], c2, 'DEMO-' || i || '-' || j || 'B', 1 + floor(random() * 8)::int);
+          values (v_pid, v_size, v_color, 'DEMO-' || i || '-' || j, (spec->>'qty')::int);
         end loop;
       end if;
     end loop;
