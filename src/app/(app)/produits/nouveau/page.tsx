@@ -213,6 +213,17 @@ export default function NouveauProduitPage() {
         <h1 className="text-xl font-bold text-ink">Nouveau produit</h1>
       </header>
 
+      {/* Raccourci : création automatique depuis un bon d'achat */}
+      <Link href="/produits/scan-bon" className="glass flex items-center gap-4 p-4 transition active:scale-[0.98]">
+        <span className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: 'linear-gradient(135deg,#ff8a55,#f05e23)' }}>
+          <IconCamera />
+        </span>
+        <div>
+          <p className="font-semibold text-ink">Gagner du temps : scanner un bon d&apos;achat</p>
+          <p className="text-ink/55 text-xs">Photo du bon → articles, tailles, quantités et prix créés automatiquement (vérifiables avant ajout)</p>
+        </div>
+      </Link>
+
       {/* Photo */}
       <label className="glass flex items-center gap-4 p-4 cursor-pointer">
         <div className="w-20 h-20 rounded-2xl bg-white/5 flex items-center justify-center overflow-hidden shrink-0">

@@ -38,11 +38,16 @@ export default function ProduitsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between pt-2">
+      <header className="flex items-center justify-between gap-2 pt-2">
         <h1 className="text-2xl font-bold text-ink">Produits</h1>
-        <Link href="/produits/nouveau" className="btn-primary !py-2 !px-3 text-sm">
-          <IconPlus className="w-4 h-4" /> Nouveau
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/produits/scan-bon" className="btn-glass !py-2 !px-3 text-sm" title="Créer les articles depuis la photo d'un bon d'achat">
+            📷 Bon d&apos;achat
+          </Link>
+          <Link href="/produits/nouveau" className="btn-primary !py-2 !px-3 text-sm">
+            <IconPlus className="w-4 h-4" /> Nouveau
+          </Link>
+        </div>
       </header>
 
       <div className="relative">
