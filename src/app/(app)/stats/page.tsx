@@ -208,7 +208,7 @@ export default function StatsPage() {
             <h2 className="section-title mb-3">Ventes par jour</h2>
             <div className="flex items-end gap-[2px] h-32">
               {stats.days.map((d) => (
-                <div key={d.day} className="flex-1 group relative">
+                <div key={d.day} className="flex-1 h-full flex items-end" title={`${d.day} : ${fmt(d.ca)}`}>
                   <div
                     className="w-full rounded-t-sm transition-all"
                     style={{

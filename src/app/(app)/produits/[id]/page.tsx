@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDate, fmtQty, variantLabel } from '@/lib/utils';
+import { fmt, fmtDate, fmtQty, variantLabel, daysAgo } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
 import QuickSale from '@/components/QuickSale';
 import { IconBack, IconTag, IconTrash, IconScan, IconCash } from '@/components/Icons';
@@ -44,6 +44,7 @@ export default function ProduitDetailPage() {
   const [tierQty, setTierQty] = useState('');
   const [tierPrice, setTierPrice] = useState('');
   const [reserved, setReserved] = useState<Record<string, number>>({});
+  const [flow30, setFlow30] = useState(0); // pièces écoulées sur 30 j (ventes + lots remis)
   const [busy, setBusy] = useState<string | null>(null);
   const [scanFor, setScanFor] = useState<string | null>(null);
   const [scanMsg, setScanMsg] = useState('');
@@ -68,10 +69,29 @@ export default function ProduitDetailPage() {
     setTiers((t as any) || []);
     const ids = ((vs as any) || []).map((v: Variant) => v.id);
     if (ids.length) {
-      const { data: resv } = await sb.from('reservations').select('variant_id,qty').eq('status', 'active').in('variant_id', ids);
+      const d30 = daysAgo(30).toISOString();
+      const [{ data: resv }, { data: sold30 }, { data: alloc30 }] = await Promise.all([
+        sb.from('reservations').select('variant_id,qty').eq('status', 'active').in('variant_id', ids),
+        sb
+          .from('sale_items')
+          .select('qty,sales!inner(created_at,canceled_at)')
+          .gte('sales.created_at', d30)
+          .is('sales.canceled_at', null)
+          .in('variant_id', ids),
+        sb
+          .from('allocation_items')
+          .select('qty,allocations!inner(created_at,direction)')
+          .gte('allocations.created_at', d30)
+          .eq('allocations.direction', 'sortie')
+          .in('variant_id', ids),
+      ]);
       const rm: Record<string, number> = {};
       (resv || []).forEach((r: any) => (rm[r.variant_id] = (rm[r.variant_id] || 0) + r.qty));
       setReserved(rm);
+      setFlow30(
+        ((sold30 as any[]) || []).reduce((s, it) => s + it.qty, 0) +
+          ((alloc30 as any[]) || []).reduce((s, it) => s + it.qty, 0)
+      );
     }
     if (ids.length) {
       const { data: mv } = await sb
@@ -214,6 +234,20 @@ export default function ProduitDetailPage() {
                   <>Aucune fourchette min–max définie (touchez pour en fixer une)</>
                 )}
                 {product.pack_size ? <> · carton de {product.pack_size}</> : null}
+              </p>
+              {/* Vitesse d'écoulement : le vrai indicateur du grossiste */}
+              <p className="text-sm mt-1.5">
+                {flow30 > 0 ? (
+                  <>
+                    <span className="text-crystal-700 font-semibold">🔥 {fmtQty(flow30)} pièce{flow30 > 1 ? 's' : ''} écoulée{flow30 > 1 ? 's' : ''} en 30 j</span>
+                    <span className="text-ink/55"> (~{Math.round((flow30 / 30) * 10) / 10}/j)</span>
+                    {total > 0 && (
+                      <span className="text-ink/55"> · stock restant ≈ {fmtQty(Math.round(total / (flow30 / 30)))} j à ce rythme</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-ink/45">Aucun écoulement sur les 30 derniers jours (ventes + lots).</span>
+                )}
               </p>
             </button>
           )}

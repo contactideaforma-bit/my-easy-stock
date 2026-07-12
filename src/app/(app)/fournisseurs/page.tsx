@@ -120,9 +120,8 @@ export default function FournisseursPage() {
     const out: SuggestLine[] = [];
     for (const v of (variants as any[]) || []) {
       const d = demand[v.id] || 0;
-      const low = v.products.low_stock_threshold || 0;
-      // Quantité proposée : couvrir la demande d'un mois, au minimum remonter au-dessus du seuil d'alerte
-      const suggested = Math.max(d - v.stock, v.stock <= low ? low * 2 - v.stock : 0);
+      // Quantité proposée : de quoi couvrir un mois de demande au rythme actuel
+      const suggested = d - v.stock;
       if (suggested > 0) out.push({ variant: v, demand30: d, stock: v.stock, qty: suggested });
     }
     out.sort((a, b) => b.demand30 - a.demand30);

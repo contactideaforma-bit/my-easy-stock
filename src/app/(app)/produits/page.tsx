@@ -120,7 +120,6 @@ export default function ProduitsPage() {
         <div className="grid grid-cols-2 gap-3">
           {filtered.map((p) => {
             const total = (p.product_variants || []).reduce((s, v) => s + v.stock, 0);
-            const low = total <= p.low_stock_threshold;
             return (
               <Link key={p.id} href={`/produits/${p.id}`} className="glass overflow-hidden transition active:scale-[0.98]">
                 <div className="aspect-square bg-white/5 flex items-center justify-center overflow-hidden">
@@ -136,7 +135,7 @@ export default function ProduitsPage() {
                   {p.brand && <p className="text-ink/55 text-xs mt-0.5">{p.brand}</p>}
                   <div className="flex items-center justify-between mt-2">
                     <span className="font-bold text-crystal-800">{fmt(Number(p.sale_price))}</span>
-                    <span className={`chip ${total === 0 ? 'chip-danger' : low ? 'chip-warn' : ''}`}>{fmtQty(total)}</span>
+                    <span className={`chip ${total === 0 ? 'chip-ok' : ''}`}>{total === 0 ? 'Écoulé ✓' : fmtQty(total)}</span>
                   </div>
                 </div>
               </Link>

@@ -3,12 +3,19 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDate, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
+import { fmt, fmtDate, fmtQty, variantLabel, startOfDay, daysAgo } from '@/lib/utils';
 import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
 import DeliveryRun from '@/components/DeliveryRun';
 import MyBot from '@/components/MyBot';
 
-type LowStock = { id: string; size: string | null; color: string | null; stock: number; products: { name: string; low_stock_threshold: number } };
+type FastMover = {
+  id: string;
+  name: string;
+  label: string;
+  stock: number;
+  qty30: number; // pièces écoulées sur 30 jours (ventes + lots remis)
+  daysLeft: number | null; // stock restant / vitesse — null si vitesse nulle
+};
 type OverdueLot = { id: string; vendorId: string; vendorName: string; date: string; dueDate: string; reste: number | null; days: number };
 type RecentSale = { id: string; number: number; total: number; payment_method: string; created_at: string; vendors: { name: string } | null };
 type VendorLine = { id: string; name: string; ca: number; nb: number; pieces: number; achat: number };
@@ -26,8 +33,7 @@ export default function Dashboard() {
   });
   const [vendorLines, setVendorLines] = useState<VendorLine[]>([]);
   const [overdue, setOverdue] = useState<OverdueLot[]>([]);
-  const [lowStock, setLowStock] = useState<LowStock[]>([]);
-  const [lowCount, setLowCount] = useState(0); // nombre RÉEL de variantes sous le seuil (pas seulement les 6 affichées)
+  const [fastMovers, setFastMovers] = useState<FastMover[]>([]);
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [name, setName] = useState('');
   // 🥚 Easter egg : 7 taps rapides sur « Bonjour » lancent le mini-jeu
@@ -71,9 +77,38 @@ export default function Dashboard() {
       const vendPieces = (vendorStock || []).reduce((s: number, r: any) => s + r.qty, 0);
       const vendAchat = (vendorStock || []).reduce(
         (s: number, r: any) => s + r.qty * Number(r.product_variants?.products?.purchase_price || 0), 0);
-      const lowAll = active.filter((v: any) => v.stock <= v.products.low_stock_threshold);
-      const low = lowAll.slice(0, 6);
-      setLowCount(lowAll.length);
+      // Vitesse d'écoulement sur 30 jours : ventes + lots remis aux revendeurs
+      const d30 = daysAgo(30).toISOString();
+      const [{ data: sold30 }, { data: alloc30 }] = await Promise.all([
+        sb
+          .from('sale_items')
+          .select('variant_id,qty,sales!inner(created_at,canceled_at)')
+          .gte('sales.created_at', d30)
+          .is('sales.canceled_at', null),
+        sb
+          .from('allocation_items')
+          .select('variant_id,qty,allocations!inner(created_at,direction)')
+          .gte('allocations.created_at', d30)
+          .eq('allocations.direction', 'sortie'),
+      ]);
+      const outflow: Record<string, number> = {};
+      (sold30 || []).forEach((it: any) => it.variant_id && (outflow[it.variant_id] = (outflow[it.variant_id] || 0) + it.qty));
+      (alloc30 || []).forEach((it: any) => (outflow[it.variant_id] = (outflow[it.variant_id] || 0) + it.qty));
+      const movers: FastMover[] = active
+        .filter((v: any) => outflow[v.id] > 0)
+        .map((v: any) => {
+          const qty30 = outflow[v.id];
+          return {
+            id: v.id,
+            name: v.products.name,
+            label: variantLabel(v),
+            stock: v.stock,
+            qty30,
+            daysLeft: qty30 > 0 ? Math.round(v.stock / (qty30 / 30)) : null,
+          };
+        })
+        .sort((a: FastMover, b: FastMover) => b.qty30 - a.qty30)
+        .slice(0, 6);
 
       // Ventes du mois par revendeur
       const byVendor: Record<string, { ca: number; nb: number }> = {};
@@ -138,7 +173,7 @@ export default function Dashboard() {
           .slice(0, 6)
       );
       setVendorLines(lines);
-      setLowStock(low as any);
+      setFastMovers(movers);
       setRecent((recentSales as any) || []);
     })();
   }, []);
@@ -170,13 +205,19 @@ export default function Dashboard() {
 
       {/* My-bot commente l'état du jour */}
       <MyBot
-        pose={overdue.length > 0 ? 'panique' : lowCount > 0 ? 'confus' : 'happy'}
+        pose={
+          overdue.length > 0
+            ? 'panique'
+            : fastMovers.some((m) => m.daysLeft != null && m.daysLeft <= 7)
+              ? 'restock'
+              : 'happy'
+        }
         message={
           overdue.length > 0
             ? `${overdue.length} reversement${overdue.length > 1 ? 's' : ''} en retard — on va les récupérer !`
-            : lowCount > 0
-              ? `${fmtQty(lowCount)} variante${lowCount > 1 ? 's' : ''} sous le seuil d'alerte (liste plus bas). Astuce : « Suggestion de réassort » dans Fournisseurs prépare la commande.`
-              : 'Tout roule ! Stock et reversements sous contrôle.'
+            : fastMovers.some((m) => m.daysLeft != null && m.daysLeft <= 7)
+              ? `Ça part vite ! ${fastMovers.filter((m) => m.daysLeft != null && m.daysLeft <= 7).length} article${fastMovers.filter((m) => m.daysLeft != null && m.daysLeft <= 7).length > 1 ? 's' : ''} épuisé${fastMovers.filter((m) => m.daysLeft != null && m.daysLeft <= 7).length > 1 ? 's' : ''} d'ici ~7 jours à ce rythme — réassort conseillé pour continuer à vendre.`
+              : 'Tout roule ! Reversements à jour et écoulement régulier.'
         }
       />
 
@@ -286,23 +327,22 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* Alertes stock bas */}
-      {lowStock.length > 0 && (
+      {/* Vitesse de vente : ce qui s'écoule le plus vite (ventes + lots, 30 j) */}
+      {fastMovers.length > 0 && (
         <section className="glass p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <IconAlert className="w-5 h-5 text-orange-500" />
-            <h2 className="section-title !text-orange-700/80">
-              Stock dépôt bas {lowCount > 6 ? `(6 sur ${fmtQty(lowCount)})` : ''}
-            </h2>
-          </div>
+          <h2 className="section-title mb-1">Vitesse de vente — top écoulement</h2>
+          <p className="text-ink/45 text-xs mb-3">
+            Pièces écoulées sur 30 jours (ventes + lots remis) et durée estimée du stock restant à ce rythme.
+          </p>
           <ul className="space-y-2">
-            {lowStock.map((v) => (
-              <li key={v.id} className="flex items-center justify-between text-sm">
-                <span className="text-ink">
-                  {v.products.name} <span className="text-ink/55">· {variantLabel(v)}</span>
+            {fastMovers.map((m) => (
+              <li key={m.id} className="flex items-center justify-between text-sm gap-2">
+                <span className="text-ink min-w-0 truncate">
+                  {m.name} <span className="text-ink/55">· {m.label}</span>
+                  <span className="text-ink/45"> — {fmtQty(m.qty30)} pcs/30 j</span>
                 </span>
-                <span className={`chip ${v.stock === 0 ? 'chip-danger' : 'chip-warn'}`}>
-                  {v.stock === 0 ? 'Épuisé' : `${fmtQty(v.stock)} rest.`}
+                <span className={`chip shrink-0 ${m.stock === 0 ? 'chip-danger' : m.daysLeft != null && m.daysLeft <= 7 ? 'chip-warn' : 'chip-ok'}`}>
+                  {m.stock === 0 ? 'Épuisé ✓' : m.daysLeft != null ? `stock ≈ ${fmtQty(m.daysLeft)} j` : `${fmtQty(m.stock)} rest.`}
                 </span>
               </li>
             ))}
