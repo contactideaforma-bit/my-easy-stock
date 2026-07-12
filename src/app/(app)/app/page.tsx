@@ -7,6 +7,7 @@ import { fmt, fmtDate, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
 import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
 
 type LowStock = { id: string; size: string | null; color: string | null; stock: number; products: { name: string; low_stock_threshold: number } };
+type OverdueLot = { id: string; vendorId: string; vendorName: string; date: string; dueDate: string; reste: number | null; days: number };
 type RecentSale = { id: string; number: number; total: number; payment_method: string; created_at: string; vendors: { name: string } | null };
 type VendorLine = { id: string; name: string; ca: number; nb: number; pieces: number; achat: number };
 
@@ -22,6 +23,7 @@ export default function Dashboard() {
     depotPieces: 0, depotAchat: 0, vendPieces: 0, vendAchat: 0,
   });
   const [vendorLines, setVendorLines] = useState<VendorLine[]>([]);
+  const [overdue, setOverdue] = useState<OverdueLot[]>([]);
   const [lowStock, setLowStock] = useState<LowStock[]>([]);
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [name, setName] = useState('');
@@ -94,6 +96,39 @@ export default function Dashboard() {
       ].sort((a, b) => b.ca - a.ca);
 
       setKpi({ caMois, nbMois: (monthSales || []).length, caToday, benefMois, depotPieces, depotAchat, vendPieces, vendAchat });
+
+      // Lots dont l'échéance de reversement est dépassée
+      const today = new Date().toISOString().slice(0, 10);
+      const [{ data: lateAllocs }, { data: lotPays }] = await Promise.all([
+        sb
+          .from('allocations')
+          .select('id,vendor_id,created_at,due_type,due_amount,due_date,vendors(name)')
+          .eq('direction', 'sortie')
+          .not('due_date', 'is', null)
+          .lt('due_date', today),
+        sb.from('vendor_payments').select('allocation_id,amount').not('allocation_id', 'is', null),
+      ]);
+      const paidByLot: Record<string, number> = {};
+      (lotPays || []).forEach((p: any) => (paidByLot[p.allocation_id] = (paidByLot[p.allocation_id] || 0) + Number(p.amount)));
+      setOverdue(
+        ((lateAllocs as any[]) || [])
+          .map((a): OverdueLot => {
+            const du = a.due_type === 'ventes' || a.due_amount == null ? null : Number(a.due_amount);
+            const reste = du != null ? Math.max(0, du - (paidByLot[a.id] || 0)) : null;
+            return {
+              id: a.id,
+              vendorId: a.vendor_id,
+              vendorName: a.vendors?.name || 'Revendeur',
+              date: a.created_at,
+              dueDate: a.due_date,
+              reste,
+              days: Math.max(1, Math.floor((Date.now() - new Date(a.due_date).getTime()) / 86400000)),
+            };
+          })
+          .filter((l) => l.reste == null || l.reste > 0)
+          .sort((a, b) => b.days - a.days)
+          .slice(0, 6)
+      );
       setVendorLines(lines);
       setLowStock(low as any);
       setRecent((recentSales as any) || []);
@@ -190,6 +225,32 @@ export default function Dashboard() {
           </ul>
         )}
       </section>
+
+      {/* Retards de reversement */}
+      {overdue.length > 0 && (
+        <section className="glass-strong p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <IconAlert className="w-5 h-5 text-rose-500" />
+            <h2 className="section-title !text-rose-700/80">Reversements en retard</h2>
+          </div>
+          <ul className="space-y-2">
+            {overdue.map((l) => (
+              <li key={l.id}>
+                <Link href={`/lots/${l.id}`} className="flex items-center justify-between text-sm">
+                  <span className="text-ink min-w-0 truncate">
+                    <span className="font-medium">{l.vendorName}</span>
+                    <span className="text-ink/45"> · lot du {fmtDate(l.date).split(' ').slice(0, 3).join(' ')}</span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="chip chip-danger !text-[10px]">{l.days} j de retard</span>
+                    <span className="font-semibold text-rose-600">{l.reste != null ? fmt(l.reste) : 'au réel'}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Alertes stock bas */}
       {lowStock.length > 0 && (

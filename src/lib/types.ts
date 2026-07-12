@@ -8,6 +8,7 @@ export type Product = {
   sale_price: number;
   price_min?: number | null;
   price_max?: number | null;
+  pack_size?: number | null;
   low_stock_threshold: number;
   archived: boolean;
   created_at: string;
@@ -65,7 +66,47 @@ export type VendorPayment = {
   vendor_id: string;
   amount: number;
   note: string | null;
+  allocation_id?: string | null;
   created_at: string;
+};
+
+/** Palier de prix par quantité (à partir de min_qty pièces → price) */
+export type PriceTier = { id: string; product_id: string; min_qty: number; price: number };
+
+/** Réservation de marchandise pour un revendeur */
+export type Reservation = {
+  id: string;
+  vendor_id: string;
+  variant_id: string;
+  qty: number;
+  note: string | null;
+  status: 'active' | 'fulfilled' | 'canceled';
+  created_at: string;
+  product_variants?: Variant & { products?: { name: string } };
+};
+
+/** Lot remis / repris à un revendeur */
+export type Allocation = {
+  id: string;
+  vendor_id: string;
+  direction: 'sortie' | 'retour';
+  due_type?: 'ventes' | 'montant' | 'pourcentage';
+  due_rate?: number | null;
+  due_amount?: number | null;
+  due_date?: string | null;
+  note?: string | null;
+  created_at: string;
+  vendors?: { name: string; phone?: string | null } | null;
+  allocation_items?: AllocationItem[];
+};
+
+export type AllocationItem = {
+  id: string;
+  allocation_id: string;
+  variant_id: string;
+  qty: number;
+  agreed_price?: number | null;
+  product_variants?: Variant & { products?: { name: string; sale_price: number } };
 };
 
 export type Vendor = {

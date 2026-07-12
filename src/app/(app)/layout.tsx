@@ -21,6 +21,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Mode hors-ligne de base : met en cache l'application (les pages restent
+  // consultables sans réseau avec les dernières données chargées).
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   useEffect(() => {
     supabase()
       .auth.getSession()

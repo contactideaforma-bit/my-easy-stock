@@ -7,9 +7,10 @@ import { fmt, fmtQty, variantLabel } from '@/lib/utils';
 import { shareTicket } from '@/lib/ticket';
 import { IconCheck, IconInvoice, IconShare, IconTrash } from '@/components/Icons';
 import { customerLabel } from '@/lib/types';
-import type { Customer, Product, Variant, Vendor } from '@/lib/types';
+import type { Customer, PriceTier, Product, Variant, Vendor } from '@/lib/types';
 
-type Line = { variant: Variant; qty: number; price: number };
+type Line = { variant: Variant; qty: number; price: number; touched?: boolean };
+type ResRow = { variant_id: string; qty: number; vendor_id: string };
 
 /**
  * Sortie de marchandise express depuis une fiche produit — pensée grossiste :
@@ -37,9 +38,12 @@ export default function QuickSale({
   const [customerId, setCustomerId] = useState('');
   const [vendorId, setVendorId] = useState('');
   const [agreedMap, setAgreedMap] = useState<Record<string, number>>({});
+  const [tiers, setTiers] = useState<PriceTier[]>([]);
+  const [resRows, setResRows] = useState<ResRow[]>([]);
   const [dueType, setDueType] = useState<'ventes' | 'montant' | 'pourcentage'>('ventes');
   const [dueRate, setDueRate] = useState('');
   const [dueAmount, setDueAmount] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [newMode, setNewMode] = useState(false);
   const [newName, setNewName] = useState('');
   const [newFirst, setNewFirst] = useState('');
@@ -50,7 +54,7 @@ export default function QuickSale({
   const [error, setError] = useState('');
   const [done, setDone] = useState<
     | { kind: 'vente'; saleId: string; number: number; date: string; total: number; benefice: number }
-    | { kind: 'lot'; vendorId: string; vendorName: string; pieces: number; value: number }
+    | { kind: 'lot'; allocId: string | null; vendorId: string; vendorName: string; pieces: number; value: number }
     | null
   >(null);
 
@@ -58,7 +62,27 @@ export default function QuickSale({
     const sb = supabase();
     sb.from('customers').select('*').order('name').then(({ data }) => setCustomers((data as any) || []));
     sb.from('vendors').select('*').eq('active', true).order('name').then(({ data }) => setVendors((data as any) || []));
+    // Paliers de prix dégressifs du produit
+    sb.from('product_price_tiers').select('*').eq('product_id', product.id).order('min_qty').then(({ data }) => setTiers((data as any) || []));
+    // Réservations actives sur ces variantes (déduites du disponible)
+    sb.from('reservations')
+      .select('variant_id,qty,vendor_id')
+      .eq('status', 'active')
+      .in('variant_id', variants.map((v) => v.id))
+      .then(({ data }) => setResRows((data as any) || []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Prix du palier atteint pour une quantité donnée (tiers triés par min_qty croissant) */
+  const tierPriceFor = (qty: number): number | null => {
+    let p: number | null = null;
+    for (const t of tiers) if (qty >= t.min_qty) p = Number(t.price);
+    return p;
+  };
+
+  /** Prix automatique : prix convenu revendeur > palier quantité > prix catalogue */
+  const autoPrice = (v: Variant, qty: number) =>
+    target === 'revendeur' && agreedMap[v.id] != null ? agreedMap[v.id] : tierPriceFor(qty) ?? Number(product.sale_price);
 
   // Prix convenus avec le revendeur sélectionné (proposés par défaut sur les lignes)
   useEffect(() => {
@@ -83,8 +107,16 @@ export default function QuickSale({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, vendorId]);
 
-  // Les deux flux puisent dans le stock du dépôt
-  const dispo = (v: Variant) => v.stock;
+  // Les deux flux puisent dans le stock du dépôt, déduction faite des réservations
+  // (celles du revendeur sélectionné restent disponibles pour lui).
+  const dispo = (v: Variant) => {
+    const totalRes = resRows.filter((r) => r.variant_id === v.id).reduce((s, r) => s + r.qty, 0);
+    const mine =
+      target === 'revendeur' && vendorId
+        ? resRows.filter((r) => r.variant_id === v.id && r.vendor_id === vendorId).reduce((s, r) => s + r.qty, 0)
+        : 0;
+    return Math.max(0, v.stock - totalRes + mine);
+  };
   const inCart = (v: Variant) => lines.find((l) => l.variant.id === v.id)?.qty || 0;
 
   function tapVariant(v: Variant) {
@@ -95,12 +127,12 @@ export default function QuickSale({
       if (i >= 0) {
         if (prev[i].qty + 1 > max) return prev;
         const next = [...prev];
-        next[i] = { ...next[i], qty: next[i].qty + 1 };
+        const q = next[i].qty + 1;
+        next[i] = { ...next[i], qty: q, price: next[i].touched ? next[i].price : autoPrice(v, q) };
         return next;
       }
       if (max < 1) return prev;
-      const defaultPrice = target === 'revendeur' && agreedMap[v.id] != null ? agreedMap[v.id] : Number(product.sale_price);
-      return [...prev, { variant: v, qty: 1, price: defaultPrice }];
+      return [...prev, { variant: v, qty: 1, price: autoPrice(v, 1) }];
     });
   }
 
@@ -109,14 +141,17 @@ export default function QuickSale({
       const l = prev.find((x) => x.variant.id === variantId);
       if (!l) return prev;
       const max = dispo(l.variant);
+      const q = Math.min(qty, max);
       return qty <= 0
         ? prev.filter((x) => x.variant.id !== variantId)
-        : prev.map((x) => (x.variant.id === variantId ? { ...x, qty: Math.min(qty, max) } : x));
+        : prev.map((x) =>
+            x.variant.id === variantId ? { ...x, qty: q, price: x.touched ? x.price : autoPrice(x.variant, q) } : x
+          );
     });
   }
 
   function setPrice(variantId: string, price: number) {
-    setLines((prev) => prev.map((x) => (x.variant.id === variantId ? { ...x, price: Math.max(0, price) } : x)));
+    setLines((prev) => prev.map((x) => (x.variant.id === variantId ? { ...x, price: Math.max(0, price), touched: true } : x)));
   }
 
   const totalVente = lines.reduce((s, l) => s + l.qty * l.price, 0);
@@ -190,7 +225,7 @@ export default function QuickSale({
       }
       setBusy(true);
       setError('');
-      const { error: err } = await supabase().rpc('allocate_to_vendor', {
+      const { data: allocId, error: err } = await supabase().rpc('allocate_to_vendor', {
         p_vendor_id: vendorId,
         p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, agreed_price: l.price })),
         p_direction: 'sortie',
@@ -198,6 +233,9 @@ export default function QuickSale({
         p_due_rate: dueType === 'pourcentage' ? Number(dueRate) : null,
         p_due_amount: lotDue,
       });
+      if (!err && dueDate && allocId) {
+        await supabase().from('allocations').update({ due_date: dueDate }).eq('id', allocId);
+      }
       setBusy(false);
       if (err) {
         setError(err.message);
@@ -205,6 +243,7 @@ export default function QuickSale({
       }
       setDone({
         kind: 'lot',
+        allocId: (allocId as string) || null,
         vendorId,
         vendorName: vendors.find((v) => v.id === vendorId)?.name || 'Revendeur',
         pieces: nbPieces,
@@ -261,9 +300,16 @@ export default function QuickSale({
                 </p>
                 <p className="text-ink/55 text-sm">Le stock du dépôt a été transféré au revendeur.</p>
               </div>
-              <Link href={`/vendeurs/${done.vendorId}`} className="btn-primary w-full">
-                Voir la fiche revendeur
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                {done.allocId && (
+                  <Link href={`/lots/${done.allocId}`} className="btn-primary">
+                    <IconInvoice className="w-5 h-5" /> Document du lot
+                  </Link>
+                )}
+                <Link href={`/vendeurs/${done.vendorId}`} className={done.allocId ? 'btn-glass' : 'btn-primary col-span-2'}>
+                  Fiche revendeur
+                </Link>
+              </div>
               <button className="btn-accent w-full" onClick={onDone}>Fermer</button>
             </>
           ) : (
@@ -366,11 +412,17 @@ export default function QuickSale({
           </div>
         )}
 
-        {/* Déclinaisons : le stock affiché est toujours celui du dépôt */}
+        {/* Déclinaisons : le stock affiché est le dépôt, réservations déduites */}
         <div>
           <p className="text-ink/55 text-xs mb-1.5">
-            Touchez les déclinaisons à sortir du dépôt, puis saisissez les quantités :
+            Touchez les déclinaisons à sortir du dépôt, puis saisissez les quantités
+            {resRows.length > 0 ? ' (réservations déduites du disponible)' : ''} :
           </p>
+          {tiers.length > 0 && (
+            <p className="text-crystal-700/80 text-[11px] mb-1.5">
+              Prix dégressifs actifs : {tiers.map((t) => `${fmtQty(t.min_qty)}+ → ${fmt(Number(t.price))}`).join(' · ')}
+            </p>
+          )}
           <div className="flex flex-wrap gap-1.5">
             {variants.map((v) => {
               const d = dispo(v);
@@ -408,6 +460,15 @@ export default function QuickSale({
                     aria-label="Quantité"
                   />
                   <button className="btn-glass !p-0 w-8 h-8 !rounded-xl" onClick={() => setQty(l.variant.id, l.qty + 1)}>+</button>
+                  {product.pack_size ? (
+                    <button
+                      className="chip !text-[10px] !px-1.5 active:scale-95"
+                      title={`Ajouter un carton de ${product.pack_size}`}
+                      onClick={() => setQty(l.variant.id, l.qty + Number(product.pack_size))}
+                    >
+                      +carton ({product.pack_size})
+                    </button>
+                  ) : null}
                 </div>
                 <input
                   className="input !py-1 !px-2 !rounded-lg text-sm text-center flex-1 min-w-0"
@@ -511,6 +572,24 @@ export default function QuickSale({
                   ))}
                 </div>
               )}
+              {/* Échéance de reversement */}
+              <div className="flex items-center gap-2 mt-3">
+                <label className="text-ink/55 text-xs shrink-0">Reversement attendu le</label>
+                <input className="input !py-2 flex-1" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                {[15, 30].map((d) => (
+                  <button
+                    key={d}
+                    className="chip active:scale-95 shrink-0"
+                    onClick={() => {
+                      const x = new Date();
+                      x.setDate(x.getDate() + d);
+                      setDueDate(x.toISOString().slice(0, 10));
+                    }}
+                  >
+                    +{d} j
+                  </button>
+                ))}
+              </div>
             </div>
           )
         ) : (

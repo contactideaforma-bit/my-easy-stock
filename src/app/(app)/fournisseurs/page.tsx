@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDay, variantLabel } from '@/lib/utils';
+import { daysAgo, fmt, fmtDay, fmtQty, variantLabel } from '@/lib/utils';
 import { IconBack, IconPlus, IconSearch, IconTrash } from '@/components/Icons';
 import type { Purchase, Supplier, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; purchase_price: number } };
 type OrderLine = { variant: VariantHit; qty: number; unit_cost: number };
+type SuggestLine = { variant: VariantHit; demand30: number; stock: number; qty: number };
 
 export default function FournisseursPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -27,6 +28,11 @@ export default function FournisseursPage() {
   const [hits, setHits] = useState<VariantHit[]>([]);
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [busy, setBusy] = useState(false);
+
+  // suggestion de réassort
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestLine[]>([]);
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -79,6 +85,74 @@ export default function FournisseursPage() {
     }
     setQ('');
     setHits([]);
+  }
+
+  /**
+   * Suggestion de réassort : demande des 30 derniers jours (ventes + lots
+   * remis aux revendeurs) comparée au stock dépôt restant.
+   */
+  async function loadSuggestions() {
+    setSuggesting(true);
+    setSuggestLoading(true);
+    const sb = supabase();
+    const d30 = daysAgo(30).toISOString();
+    const [{ data: soldItems }, { data: allocItems }, { data: variants }] = await Promise.all([
+      sb
+        .from('sale_items')
+        .select('variant_id,qty,sales!inner(created_at,canceled_at)')
+        .gte('sales.created_at', d30)
+        .is('sales.canceled_at', null),
+      sb
+        .from('allocation_items')
+        .select('variant_id,qty,allocations!inner(created_at,direction)')
+        .gte('allocations.created_at', d30)
+        .eq('allocations.direction', 'sortie'),
+      sb
+        .from('product_variants')
+        .select('*, products!inner(name, purchase_price, low_stock_threshold, archived)')
+        .eq('products.archived', false),
+    ]);
+    const demand: Record<string, number> = {};
+    (soldItems || []).forEach((it: any) => it.variant_id && (demand[it.variant_id] = (demand[it.variant_id] || 0) + it.qty));
+    (allocItems || []).forEach((it: any) => (demand[it.variant_id] = (demand[it.variant_id] || 0) + it.qty));
+
+    const out: SuggestLine[] = [];
+    for (const v of (variants as any[]) || []) {
+      const d = demand[v.id] || 0;
+      const low = v.products.low_stock_threshold || 0;
+      // Quantité proposée : couvrir la demande d'un mois, au minimum remonter au-dessus du seuil d'alerte
+      const suggested = Math.max(d - v.stock, v.stock <= low ? low * 2 - v.stock : 0);
+      if (suggested > 0) out.push({ variant: v, demand30: d, stock: v.stock, qty: suggested });
+    }
+    out.sort((a, b) => b.demand30 - a.demand30);
+    setSuggestions(out.slice(0, 40));
+    setSuggestLoading(false);
+  }
+
+  async function orderSuggestions() {
+    const keep = suggestions.filter((s) => s.qty > 0);
+    if (keep.length === 0) return;
+    setBusy(true);
+    const sb = supabase();
+    const { data: purchase, error } = await sb
+      .from('purchases')
+      .insert({ supplier_id: supplierId || null, note: 'Réassort suggéré (demande 30 j)' })
+      .select()
+      .single();
+    if (!error && purchase) {
+      await sb.from('purchase_items').insert(
+        keep.map((s) => ({
+          purchase_id: purchase.id,
+          variant_id: s.variant.id,
+          qty: s.qty,
+          unit_cost: Number(s.variant.products.purchase_price) || 0,
+        }))
+      );
+    }
+    setBusy(false);
+    setSuggesting(false);
+    setSuggestions([]);
+    load();
   }
 
   async function saveOrder() {
@@ -158,6 +232,69 @@ export default function FournisseursPage() {
           <Link href="/fournisseurs/scan" className="btn-accent w-full !py-3">
             📷 Scanner un bon d&apos;achat (extraction automatique)
           </Link>
+          {!suggesting && (
+            <button className="btn-glass w-full !py-3" onClick={loadSuggestions}>
+              💡 Suggestion de réassort (demande des 30 derniers jours)
+            </button>
+          )}
+          {suggesting && (
+            <div className="glass-strong p-4 space-y-3">
+              <h2 className="section-title">Réassort suggéré</h2>
+              <p className="text-ink/45 text-xs">
+                Basé sur la demande des 30 derniers jours (ventes + lots remis) comparée au stock dépôt restant. Ajustez les quantités.
+              </p>
+              {suggestLoading ? (
+                <p className="text-ink/55 text-sm animate-pulse">Analyse de la demande…</p>
+              ) : suggestions.length === 0 ? (
+                <p className="text-ink/55 text-sm">Rien à réassortir : le stock couvre la demande. 👌</p>
+              ) : (
+                <>
+                  <select className="input !py-2" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                    <option value="" className="text-black">Fournisseur (optionnel)…</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id} className="text-black">{s.name}</option>
+                    ))}
+                  </select>
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                    {suggestions.map((s, i) => (
+                      <div key={s.variant.id} className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-ink truncate">{s.variant.products.name}</p>
+                          <p className="text-xs text-ink/55">
+                            {variantLabel(s.variant)} · vendu/remis {fmtQty(s.demand30)} en 30 j · reste {fmtQty(s.stock)}
+                          </p>
+                        </div>
+                        <input
+                          className="input !w-20 !py-1.5 text-center font-bold"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={s.qty}
+                          onChange={(e) =>
+                            setSuggestions(suggestions.map((x, j) => (j === i ? { ...x, qty: Math.max(0, Math.floor(Number(e.target.value) || 0)) } : x)))
+                          }
+                          aria-label="Quantité à commander"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-right text-sm text-ink/60">
+                    {fmtQty(suggestions.reduce((x, s) => x + s.qty, 0))} pièces ·{' '}
+                    <span className="font-semibold text-ink">
+                      {fmt(suggestions.reduce((x, s) => x + s.qty * Number(s.variant.products.purchase_price || 0), 0))}
+                    </span>{' '}
+                    <span className="text-ink/40 text-xs">coût d&apos;achat estimé</span>
+                  </p>
+                </>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-glass" onClick={() => { setSuggesting(false); setSuggestions([]); }}>Fermer</button>
+                <button className="btn-primary" onClick={orderSuggestions} disabled={busy || suggestions.every((s) => s.qty === 0)}>
+                  {busy ? '…' : 'Créer la commande'}
+                </button>
+              </div>
+            </div>
+          )}
           {!ordering ? (
             <button className="btn-primary w-full" onClick={() => setOrdering(true)}>
               <IconPlus className="w-4 h-4" /> Nouvelle commande manuelle

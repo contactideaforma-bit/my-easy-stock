@@ -8,7 +8,7 @@ import { fmt, fmtDate, fmtQty, variantLabel } from '@/lib/utils';
 import Scanner from '@/components/Scanner';
 import QuickSale from '@/components/QuickSale';
 import { IconBack, IconTag, IconTrash, IconScan, IconCash } from '@/components/Icons';
-import type { Product, Variant } from '@/lib/types';
+import type { PriceTier, Product, Variant } from '@/lib/types';
 
 type Movement = {
   id: string;
@@ -39,6 +39,11 @@ export default function ProduitDetailPage() {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [packSize, setPackSize] = useState('');
+  const [tiers, setTiers] = useState<PriceTier[]>([]);
+  const [tierQty, setTierQty] = useState('');
+  const [tierPrice, setTierPrice] = useState('');
+  const [reserved, setReserved] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [scanFor, setScanFor] = useState<string | null>(null);
   const [scanMsg, setScanMsg] = useState('');
@@ -57,8 +62,17 @@ export default function ProduitDetailPage() {
       setPurchasePrice(String(p.purchase_price));
       setPriceMin(p.price_min != null ? String(p.price_min) : '');
       setPriceMax(p.price_max != null ? String(p.price_max) : '');
+      setPackSize(p.pack_size != null ? String(p.pack_size) : '');
     }
+    const { data: t } = await sb.from('product_price_tiers').select('*').eq('product_id', id).order('min_qty');
+    setTiers((t as any) || []);
     const ids = ((vs as any) || []).map((v: Variant) => v.id);
+    if (ids.length) {
+      const { data: resv } = await sb.from('reservations').select('variant_id,qty').eq('status', 'active').in('variant_id', ids);
+      const rm: Record<string, number> = {};
+      (resv || []).forEach((r: any) => (rm[r.variant_id] = (rm[r.variant_id] || 0) + r.qty));
+      setReserved(rm);
+    }
     if (ids.length) {
       const { data: mv } = await sb
         .from('stock_movements')
@@ -101,9 +115,26 @@ export default function ProduitDetailPage() {
         purchase_price: Number(purchasePrice) || 0,
         price_min: priceMin ? Number(priceMin) : null,
         price_max: priceMax ? Number(priceMax) : null,
+        pack_size: packSize ? Math.max(1, Math.floor(Number(packSize))) : null,
       })
       .eq('id', id);
     setEditPrice(false);
+    load();
+  }
+
+  async function addTier() {
+    const q = Math.floor(Number(tierQty));
+    const pr = Number(tierPrice);
+    if (!q || q < 1 || !pr) return;
+    const { error } = await supabase().from('product_price_tiers').insert({ product_id: id, min_qty: q, price: pr });
+    if (error) alert(error.code === '23505' ? 'Un palier existe déjà pour cette quantité.' : error.message);
+    setTierQty('');
+    setTierPrice('');
+    load();
+  }
+
+  async function removeTier(tId: string) {
+    await supabase().from('product_price_tiers').delete().eq('id', tId);
     load();
   }
 
@@ -159,6 +190,10 @@ export default function ProduitDetailPage() {
                   <label className="text-ink/55 text-xs">Prix vente maximum</label>
                   <input className="input !py-2" type="number" step="0.01" placeholder="optionnel" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} />
                 </div>
+                <div className="col-span-2">
+                  <label className="text-ink/55 text-xs">Pièces par carton (colisage, optionnel)</label>
+                  <input className="input !py-2" type="number" inputMode="numeric" placeholder="ex : 12" value={packSize} onChange={(e) => setPackSize(e.target.value)} />
+                </div>
               </div>
               <button className="btn-primary w-full !py-2" onClick={savePrices}>Enregistrer les prix</button>
             </div>
@@ -178,6 +213,7 @@ export default function ProduitDetailPage() {
                 ) : (
                   <>Aucune fourchette min–max définie (touchez pour en fixer une)</>
                 )}
+                {product.pack_size ? <> · carton de {product.pack_size}</> : null}
               </p>
             </button>
           )}
@@ -189,6 +225,36 @@ export default function ProduitDetailPage() {
         <IconCash className="w-5 h-5" /> Remettre un lot · Vendre
       </button>
 
+      {/* Paliers de prix par quantité */}
+      <section className="glass p-4">
+        <h2 className="section-title mb-1">Prix dégressifs par quantité</h2>
+        <p className="text-ink/45 text-xs mb-3">
+          Le prix se remplit automatiquement selon la quantité saisie lors d&apos;une vente ou d&apos;une remise de lot.
+        </p>
+        {tiers.length > 0 && (
+          <ul className="space-y-1.5 mb-3">
+            {tiers.map((t) => (
+              <li key={t.id} className="flex items-center justify-between text-sm">
+                <span className="text-ink">À partir de <span className="font-semibold">{fmtQty(t.min_qty)}</span> pièce{t.min_qty > 1 ? 's' : ''}</span>
+                <span className="flex items-center gap-2">
+                  <span className="font-semibold text-crystal-700">{fmt(Number(t.price))} / pièce</span>
+                  <button className="text-rose-500/70 p-1" onClick={() => removeTier(t.id)} aria-label="Supprimer le palier">
+                    <IconTrash className="w-4 h-4" />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="text-ink/55 text-xs shrink-0">Dès</span>
+          <input className="input !py-2 w-20 text-center" type="number" inputMode="numeric" placeholder="10" value={tierQty} onChange={(e) => setTierQty(e.target.value)} />
+          <span className="text-ink/55 text-xs shrink-0">pcs →</span>
+          <input className="input !py-2 flex-1 text-center" type="number" step="0.01" inputMode="decimal" placeholder="prix/pièce" value={tierPrice} onChange={(e) => setTierPrice(e.target.value)} />
+          <button className="btn-primary !py-2 !px-3 text-sm" onClick={addTier}>OK</button>
+        </div>
+      </section>
+
       {/* Variantes */}
       <section className="glass p-4">
         <h2 className="section-title mb-3">Stock par variante</h2>
@@ -197,7 +263,10 @@ export default function ProduitDetailPage() {
           {variants.map((v) => (
             <li key={v.id} className="flex items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-ink text-sm font-medium">{variantLabel(v)}</p>
+                <p className="text-ink text-sm font-medium">
+                  {variantLabel(v)}
+                  {reserved[v.id] ? <span className="chip chip-warn !text-[10px] !px-1.5 ml-1.5">{fmtQty(reserved[v.id])} réservée{reserved[v.id] > 1 ? 's' : ''}</span> : null}
+                </p>
                 <p className="text-ink/45 text-xs truncate">{v.sku} · {v.barcode || 'sans code'}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">

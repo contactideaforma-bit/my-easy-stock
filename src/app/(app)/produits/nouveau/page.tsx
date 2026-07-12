@@ -38,6 +38,7 @@ export default function NouveauProduitPage() {
   const [salePrice, setSalePrice] = useState('');
   const [priceMin, setPriceMin] = useState('');
   const [priceMax, setPriceMax] = useState('');
+  const [packSize, setPackSizeNP] = useState('');
   const [threshold, setThreshold] = useState('3');
 
   // Déclinaisons
@@ -160,6 +161,7 @@ export default function NouveauProduitPage() {
         sale_price: Number(salePrice),
         price_min: priceMin ? Number(priceMin) : null,
         price_max: priceMax ? Number(priceMax) : null,
+        pack_size: packSize ? Math.max(1, Math.floor(Number(packSize))) : null,
         low_stock_threshold: Number(threshold) || 3,
         image_url: imageUrl,
       })
@@ -316,6 +318,10 @@ export default function NouveauProduitPage() {
           <div>
             <label className="text-ink/55 text-xs pl-1">Prix de vente maximum</label>
             <input className="input" type="number" step="0.01" inputMode="decimal" placeholder="optionnel" value={priceMax} onChange={(e) => setPriceMax(e.target.value)} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-ink/55 text-xs pl-1">Pièces par carton (colisage, optionnel)</label>
+            <input className="input" type="number" inputMode="numeric" placeholder="ex : 12 — permet d'ajouter carton par carton" value={packSize} onChange={(e) => setPackSizeNP(e.target.value)} />
           </div>
         </div>
         <p className="text-ink/45 text-xs">

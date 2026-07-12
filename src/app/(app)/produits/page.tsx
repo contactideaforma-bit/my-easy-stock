@@ -13,6 +13,7 @@ export default function ProduitsPage() {
   const [catId, setCatId] = useState('');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState<string | null>(null); // date de l'instantané utilisé hors-ligne
 
   useEffect(() => {
     const sb = supabase();
@@ -20,8 +21,24 @@ export default function ProduitsPage() {
       .select('*, categories(name), product_variants(id,stock)')
       .eq('archived', false)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setProducts((data as any) || []);
+      .then(({ data, error }) => {
+        if (data && !error) {
+          setProducts((data as any) || []);
+          setOffline(null);
+          // Instantané local pour consultation hors-ligne (entrepôt, marché…)
+          try {
+            localStorage.setItem('mes_offline_products', JSON.stringify({ at: new Date().toISOString(), rows: data }));
+          } catch {}
+        } else {
+          // Pas de réseau : on sert le dernier instantané connu
+          try {
+            const snap = JSON.parse(localStorage.getItem('mes_offline_products') || 'null');
+            if (snap?.rows) {
+              setProducts(snap.rows);
+              setOffline(snap.at);
+            }
+          } catch {}
+        }
         setLoading(false);
       });
     sb.from('categories').select('*').order('name').then(({ data }) => setCategories(data || []));
@@ -49,6 +66,12 @@ export default function ProduitsPage() {
           </Link>
         </div>
       </header>
+
+      {offline && (
+        <p className="chip chip-warn w-full !rounded-2xl !py-2 justify-center text-center">
+          Mode hors-ligne — stock du {new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(offline))}
+        </p>
+      )}
 
       <div className="relative">
         <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />

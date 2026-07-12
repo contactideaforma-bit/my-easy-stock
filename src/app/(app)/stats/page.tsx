@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, daysAgo, variantLabel } from '@/lib/utils';
+import { fmt, fmtQty, daysAgo, variantLabel } from '@/lib/utils';
 import { downloadCSV, csvNumber } from '@/lib/csv';
 import { IconBack, IconDownload } from '@/components/Icons';
 
@@ -23,10 +23,30 @@ const PERIODS = [
   { key: 90, label: '3 mois' },
 ] as const;
 
+type DormantRow = {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+  purchase_price: number;
+  last_move: string | null;
+};
+
 export default function StatsPage() {
   const [period, setPeriod] = useState<7 | 30 | 90>(7);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dormantDays, setDormantDays] = useState<30 | 60 | 90>(60);
+  const [dormant, setDormant] = useState<DormantRow[]>([]);
+
+  // Stock dormant : pièces en stock sans aucun mouvement depuis N jours
+  useEffect(() => {
+    supabase()
+      .rpc('get_dormant_stock', { p_days: dormantDays })
+      .then(({ data }) => setDormant((data as any) || []));
+  }, [dormantDays]);
 
   useEffect(() => {
     setLoading(true);
@@ -234,6 +254,55 @@ export default function StatsPage() {
                   </li>
                 ))}
               </ul>
+            )}
+          </section>
+
+          {/* Stock dormant */}
+          <section className="glass p-4">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="section-title">Stock dormant</h2>
+              <div className="flex gap-1">
+                {([30, 60, 90] as const).map((d) => (
+                  <button
+                    key={d}
+                    className={`chip !text-[11px] ${dormantDays === d ? '!bg-crystal-600 !text-white !border-crystal-600' : ''}`}
+                    onClick={() => setDormantDays(d)}
+                  >
+                    {d} j
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-ink/45 text-xs mb-3">
+              Articles en stock au dépôt sans aucun mouvement depuis {dormantDays} jours — argent immobilisé.
+            </p>
+            {dormant.length === 0 ? (
+              <p className="text-ink/55 text-sm">Rien ne dort depuis {dormantDays} jours. 👌</p>
+            ) : (
+              <>
+                <p className="text-sm mb-3">
+                  <span className="font-bold text-orange-600">
+                    {fmt(dormant.reduce((s, d) => s + d.stock * Number(d.purchase_price), 0))}
+                  </span>
+                  <span className="text-ink/55"> de valeur d&apos;achat immobilisée sur {fmtQty(dormant.reduce((s, d) => s + d.stock, 0))} pièce{dormant.length > 1 ? 's' : ''}</span>
+                </p>
+                <ul className="space-y-2">
+                  {dormant.slice(0, 12).map((d) => (
+                    <li key={d.variant_id} className="flex items-center justify-between text-sm">
+                      <Link href={`/produits/${d.product_id}`} className="text-ink min-w-0 truncate">
+                        {d.product_name} <span className="text-ink/55">· {variantLabel(d)}</span>
+                      </Link>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="chip">{fmtQty(d.stock)} pcs</span>
+                        <span className="font-semibold text-ink">{fmt(d.stock * Number(d.purchase_price))}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {dormant.length > 12 && (
+                  <p className="text-ink/45 text-xs mt-2">… et {dormant.length - 12} autre{dormant.length - 12 > 1 ? 's' : ''} variante{dormant.length - 12 > 1 ? 's' : ''}.</p>
+                )}
+              </>
             )}
           </section>
 
