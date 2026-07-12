@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { shareTicket } from '@/lib/ticket';
 import { fmt, fmtDate } from '@/lib/utils';
@@ -9,10 +10,18 @@ import { IconBack, IconShare, IconInvoice } from '@/components/Icons';
 import type { Sale } from '@/lib/types';
 
 export default function VentesPage() {
+  const router = useRouter();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Sale | null>(null);
   const [busy, setBusy] = useState(false);
+  // Fusion de ventes → une seule facture
+  const [merging, setMerging] = useState(false);
+  const [checked, setChecked] = useState<string[]>([]);
+
+  const toggleCheck = (id: string) =>
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const checkedTotal = sales.filter((s) => checked.includes(s.id)).reduce((t, s) => t + Number(s.total), 0);
 
   const load = useCallback(async () => {
     const { data } = await supabase()
@@ -53,7 +62,22 @@ export default function VentesPage() {
       <header className="flex items-center gap-3 pt-2">
         <Link href="/plus" className="btn-glass !p-2"><IconBack /></Link>
         <h1 className="text-xl font-bold text-ink flex-1">Journal des ventes</h1>
+        <button
+          className={`${merging ? 'btn-primary' : 'btn-glass'} !py-2 !px-3 text-sm`}
+          onClick={() => {
+            setMerging(!merging);
+            setChecked([]);
+          }}
+        >
+          {merging ? 'Annuler' : 'Fusionner'}
+        </button>
       </header>
+
+      {merging && (
+        <p className="text-ink/55 text-xs px-1 -mt-2">
+          Cochez les ventes à regrouper sur une seule facture (ventes annulées exclues).
+        </p>
+      )}
 
       {loading ? (
         <div className="glass p-8 text-center text-ink/55 animate-pulse">Chargement…</div>
@@ -62,8 +86,28 @@ export default function VentesPage() {
       ) : (
         <div className="glass p-2">
           {sales.map((s) => (
-            <button key={s.id} className="w-full flex items-center justify-between p-3 text-left" onClick={() => setSelected(s)}>
-              <div className="min-w-0">
+            <button
+              key={s.id}
+              className="w-full flex items-center justify-between p-3 text-left"
+              onClick={() => {
+                if (merging) {
+                  if (!s.canceled_at) toggleCheck(s.id);
+                } else {
+                  setSelected(s);
+                }
+              }}
+            >
+              {merging && (
+                <span
+                  className={`w-5 h-5 rounded-md border mr-3 shrink-0 flex items-center justify-center text-white text-xs ${
+                    s.canceled_at ? 'opacity-20 border-ink/20' : checked.includes(s.id) ? 'bg-crystal-600 border-crystal-600' : 'border-ink/25'
+                  }`}
+                  aria-hidden
+                >
+                  {checked.includes(s.id) ? '✓' : ''}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
                 <p className={`text-sm font-medium ${s.canceled_at ? 'text-ink/40 line-through' : 'text-ink'}`}>
                   #{s.number} · {s.vendors?.name || 'Dépôt'}
                 </p>
@@ -80,6 +124,24 @@ export default function VentesPage() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Barre de fusion */}
+      {merging && checked.length > 0 && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-lg">
+          <button
+            className="btn-accent w-full py-4 justify-between px-6"
+            disabled={checked.length < 2}
+            onClick={() => router.push(`/factures/groupee?ids=${checked.join(',')}`)}
+          >
+            <span>
+              {checked.length < 2
+                ? `Sélectionnez au moins 2 ventes (${checked.length}/2)`
+                : `Facture groupée — ${checked.length} ventes`}
+            </span>
+            <span>{fmt(checkedTotal)}</span>
+          </button>
         </div>
       )}
 

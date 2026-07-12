@@ -45,6 +45,7 @@ export default function ProduitDetailPage() {
   const [tierPrice, setTierPrice] = useState('');
   const [reserved, setReserved] = useState<Record<string, number>>({});
   const [flow30, setFlow30] = useState(0); // pièces écoulées sur 30 j (ventes + lots remis)
+  const [openColors, setOpenColors] = useState<Record<string, boolean>>({}); // accordéon couleurs
   const [busy, setBusy] = useState<string | null>(null);
   const [scanFor, setScanFor] = useState<string | null>(null);
   const [scanMsg, setScanMsg] = useState('');
@@ -170,6 +171,30 @@ export default function ProduitDetailPage() {
   const total = variants.reduce((s, v) => s + v.stock, 0);
   const margin = Number(product.sale_price) - Number(product.purchase_price);
 
+  // Regroupement par couleur, tailles triées (lettres puis pointures)
+  const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+  const sizeRank = (s: string | null) => {
+    if (!s) return -1;
+    const n = Number(s.replace(',', '.'));
+    if (!isNaN(n)) return 1000 + n;
+    const idx = SIZE_ORDER.indexOf(s.toUpperCase());
+    return idx >= 0 ? idx : 500;
+  };
+  const colorGroups = (() => {
+    const m = new Map<string, Variant[]>();
+    variants.forEach((v) => {
+      const k = v.color || 'Sans couleur';
+      m.set(k, [...(m.get(k) || []), v]);
+    });
+    return Array.from(m.entries()).map(([color, vs]) => ({
+      color,
+      vs: [...vs].sort((a, b) => sizeRank(a.size) - sizeRank(b.size)),
+      total: vs.reduce((s, v) => s + v.stock, 0),
+      res: vs.reduce((s, v) => s + (reserved[v.id] || 0), 0),
+    }));
+  })();
+  const isOpen = (c: string) => openColors[c] ?? colorGroups.length === 1;
+
   return (
     <div className="space-y-4 pb-8">
       <header className="flex items-center gap-3 pt-2">
@@ -289,44 +314,80 @@ export default function ProduitDetailPage() {
         </div>
       </section>
 
-      {/* Variantes */}
+      {/* Stock par couleur → tailles (accordéon) */}
       <section className="glass p-4">
-        <h2 className="section-title mb-3">Stock par variante</h2>
+        <h2 className="section-title mb-1">Stock par couleur</h2>
+        <p className="text-ink/45 text-xs mb-3">
+          {colorGroups.length} couleur{colorGroups.length > 1 ? 's' : ''} — touchez une couleur pour dérouler ses tailles et quantités.
+        </p>
         {scanMsg && <p className="text-crystal-700 text-sm mb-2">{scanMsg}</p>}
-        <ul className="space-y-3">
-          {variants.map((v) => (
-            <li key={v.id} className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-ink text-sm font-medium">
-                  {variantLabel(v)}
-                  {reserved[v.id] ? <span className="chip chip-warn !text-[10px] !px-1.5 ml-1.5">{fmtQty(reserved[v.id])} réservée{reserved[v.id] > 1 ? 's' : ''}</span> : null}
-                </p>
-                <p className="text-ink/45 text-xs truncate">{v.sku} · {v.barcode || 'sans code'}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  className="btn-glass !p-2 !rounded-xl w-9 h-9"
-                  onClick={() => setScanFor(v.id)}
-                  aria-label="Associer un code-barres"
-                >
-                  <IconScan className="w-4 h-4" />
-                </button>
-                <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id || v.stock === 0} onClick={() => adjust(v.id, -1)}>−</button>
-                <button
-                  className={`min-w-[3.5rem] px-1 text-center font-bold underline decoration-dotted decoration-ink/30 underline-offset-4 ${v.stock === 0 ? 'text-rose-600' : 'text-ink'}`}
-                  title="Saisir le stock exact"
-                  disabled={busy === v.id}
-                  onClick={() => {
-                    const input = prompt(`Nouveau stock pour ${variantLabel(v)} :`, String(v.stock));
-                    if (input == null) return;
-                    const next = Math.max(0, Math.floor(Number(input) || 0));
-                    if (next !== v.stock) adjust(v.id, next - v.stock);
-                  }}
-                >
-                  {fmtQty(v.stock)}
-                </button>
-                <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id} onClick={() => adjust(v.id, 1)}>+</button>
-              </div>
+        <ul className="space-y-2">
+          {colorGroups.map((g) => (
+            <li key={g.color} className="glass !rounded-2xl overflow-hidden">
+              {/* Ligne couleur */}
+              <button
+                className="w-full flex items-center justify-between gap-2 p-3"
+                onClick={() => setOpenColors((prev) => ({ ...prev, [g.color]: !isOpen(g.color) }))}
+                aria-expanded={isOpen(g.color)}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`text-crystal-600 text-xs transition-transform ${isOpen(g.color) ? 'rotate-90' : ''}`}
+                    aria-hidden
+                  >
+                    ▶
+                  </span>
+                  <span className="font-semibold text-ink truncate">{g.color}</span>
+                  <span className="text-ink/45 text-xs">{g.vs.length > 1 ? `${g.vs.length} tailles` : ''}</span>
+                </span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  {g.res > 0 && <span className="chip chip-warn !text-[10px] !px-1.5">{fmtQty(g.res)} rés.</span>}
+                  <span className={`chip ${g.total === 0 ? 'chip-ok' : ''}`}>{g.total === 0 ? 'Écoulé ✓' : `${fmtQty(g.total)} pcs`}</span>
+                </span>
+              </button>
+
+              {/* Tailles de la couleur */}
+              {isOpen(g.color) && (
+                <ul className="px-3 pb-3 space-y-2.5 border-t border-ink/5 pt-2.5">
+                  {g.vs.map((v) => (
+                    <li key={v.id} className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-ink text-sm font-medium">
+                          {v.size || 'Taille unique'}
+                          {reserved[v.id] ? (
+                            <span className="chip chip-warn !text-[10px] !px-1.5 ml-1.5">{fmtQty(reserved[v.id])} réservée{reserved[v.id] > 1 ? 's' : ''}</span>
+                          ) : null}
+                        </p>
+                        <p className="text-ink/45 text-xs truncate">{v.sku} · {v.barcode || 'sans code'}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          className="btn-glass !p-2 !rounded-xl w-9 h-9"
+                          onClick={() => setScanFor(v.id)}
+                          aria-label="Associer un code-barres"
+                        >
+                          <IconScan className="w-4 h-4" />
+                        </button>
+                        <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id || v.stock === 0} onClick={() => adjust(v.id, -1)}>−</button>
+                        <button
+                          className={`min-w-[3.5rem] px-1 text-center font-bold underline decoration-dotted decoration-ink/30 underline-offset-4 ${v.stock === 0 ? 'text-rose-600' : 'text-ink'}`}
+                          title="Saisir le stock exact"
+                          disabled={busy === v.id}
+                          onClick={() => {
+                            const input = prompt(`Nouveau stock pour ${variantLabel(v)} :`, String(v.stock));
+                            if (input == null) return;
+                            const next = Math.max(0, Math.floor(Number(input) || 0));
+                            if (next !== v.stock) adjust(v.id, next - v.stock);
+                          }}
+                        >
+                          {fmtQty(v.stock)}
+                        </button>
+                        <button className="btn-glass !p-2 !rounded-xl w-9 h-9" disabled={busy === v.id} onClick={() => adjust(v.id, 1)}>+</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
