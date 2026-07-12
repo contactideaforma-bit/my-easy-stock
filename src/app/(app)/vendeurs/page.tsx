@@ -8,7 +8,7 @@ import { IconPlus, IconUsers } from '@/components/Icons';
 import { MyBotTip } from '@/components/MyBot';
 import type { Vendor } from '@/lib/types';
 
-type VendorRow = Vendor & { pieces: number; stockAchat: number; caMois: number; nbVentes: number; du: number };
+type VendorRow = Vendor & { pieces: number; verse: number; caMois: number; nbVentes: number; du: number };
 
 function startOfMonth() {
   const d = startOfDay();
@@ -28,19 +28,19 @@ export default function VendeursPage() {
     const monthStart = startOfMonth().toISOString();
     const [{ data: vendors }, { data: stock }, { data: sales }, { data: payments }, { data: allocs }] = await Promise.all([
       sb.from('vendors').select('*').eq('active', true).order('name'),
-      sb.from('vendor_stock').select('vendor_id,qty,product_variants(products(purchase_price))'),
+      sb.from('vendor_stock').select('vendor_id,qty'),
       sb.from('sales').select('vendor_id,total,created_at').not('vendor_id', 'is', null).is('canceled_at', null),
       sb.from('vendor_payments').select('vendor_id,amount'),
       sb.from('allocations').select('vendor_id,due_amount').eq('direction', 'sortie').neq('due_type', 'ventes').not('due_amount', 'is', null),
     ]);
 
     const pieces: Record<string, number> = {};
-    const stockAchat: Record<string, number> = {};
     (stock || []).forEach((s: any) => {
       pieces[s.vendor_id] = (pieces[s.vendor_id] || 0) + s.qty;
-      stockAchat[s.vendor_id] =
-        (stockAchat[s.vendor_id] || 0) + s.qty * Number(s.product_variants?.products?.purchase_price || 0);
     });
+    // Somme déjà reversée par chaque revendeur
+    const verse: Record<string, number> = {};
+    (payments || []).forEach((p: any) => (verse[p.vendor_id] = (verse[p.vendor_id] || 0) + Number(p.amount)));
     const ca: Record<string, number> = {};
     const nb: Record<string, number> = {};
     const ventesTotal: Record<string, number> = {};
@@ -64,7 +64,7 @@ export default function VendeursPage() {
       ((vendors as any) || []).map((v: Vendor) => ({
         ...v,
         pieces: pieces[v.id] || 0,
-        stockAchat: stockAchat[v.id] || 0,
+        verse: verse[v.id] || 0,
         caMois: ca[v.id] || 0,
         nbVentes: nb[v.id] || 0,
         du: Math.max(0, du[v.id] || 0),
@@ -139,8 +139,8 @@ export default function VendeursPage() {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="font-bold text-crystal-700">{fmt(v.stockAchat)}</p>
-                <p className="text-ink/45 text-[10px] -mt-0.5">stock (valeur d&apos;achat)</p>
+                <p className="font-bold text-emerald-600">{fmt(v.verse)}</p>
+                <p className="text-ink/45 text-[10px] -mt-0.5">déjà reversé</p>
                 {v.du > 0 && <span className="chip chip-warn !text-[10px]">doit {fmt(v.du)}</span>}
               </div>
             </Link>

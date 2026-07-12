@@ -28,7 +28,15 @@ export type Variant = {
 };
 
 export type Category = { id: string; name: string };
-export type Supplier = { id: string; name: string; phone: string | null; email: string | null; notes: string | null };
+export type Supplier = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  contact_name?: string | null;
+  address?: string | null;
+};
 export type Customer = {
   id: string;
   name: string;

@@ -18,7 +18,16 @@ type FastMover = {
 };
 type OverdueLot = { id: string; vendorId: string; vendorName: string; date: string; dueDate: string; reste: number | null; days: number };
 type RecentSale = { id: string; number: number; total: number; payment_method: string; created_at: string; vendors: { name: string } | null };
-type VendorLine = { id: string; name: string; ca: number; nb: number; pieces: number; achat: number };
+type VendorLine = {
+  id: string;
+  name: string;
+  ca: number;
+  nb: number;
+  pieces: number;
+  achat: number;
+  verse: number; // somme déjà reversée sur la marchandise fournie
+  delai: number | null; // délai moyen de paiement en jours (paiements rattachés à un lot)
+};
 
 function startOfMonth() {
   const d = startOfDay();
@@ -64,6 +73,28 @@ export default function Dashboard() {
           sb.from('vendors').select('id,name').eq('active', true),
           sb.from('sales').select('id,number,total,payment_method,created_at,vendors(name)').is('canceled_at', null).order('created_at', { ascending: false }).limit(5),
         ]);
+
+      // Reversements : total versé par revendeur + délai moyen de paiement
+      // (délai = temps entre la remise d'un lot et un paiement qui lui est rattaché)
+      const [{ data: allPays }, { data: allAllocs }] = await Promise.all([
+        sb.from('vendor_payments').select('vendor_id,amount,allocation_id,created_at'),
+        sb.from('allocations').select('id,created_at'),
+      ]);
+      const allocDate: Record<string, string> = {};
+      (allAllocs || []).forEach((a: any) => (allocDate[a.id] = a.created_at));
+      const verseByVendor: Record<string, number> = {};
+      const delaysByVendor: Record<string, number[]> = {};
+      (allPays || []).forEach((p: any) => {
+        verseByVendor[p.vendor_id] = (verseByVendor[p.vendor_id] || 0) + Number(p.amount);
+        if (p.allocation_id && allocDate[p.allocation_id]) {
+          const days = (new Date(p.created_at).getTime() - new Date(allocDate[p.allocation_id]).getTime()) / 86400000;
+          if (days >= 0) (delaysByVendor[p.vendor_id] = delaysByVendor[p.vendor_id] || []).push(days);
+        }
+      });
+      const delaiByVendor: Record<string, number> = {};
+      Object.entries(delaysByVendor).forEach(([k, arr]) => {
+        delaiByVendor[k] = Math.round(arr.reduce((s, d) => s + d, 0) / arr.length);
+      });
 
       const caMois = (monthSales || []).reduce((s, x) => s + Number(x.total), 0);
       const caToday = (monthSales || []).filter((x) => x.created_at >= todayStart).reduce((s, x) => s + Number(x.total), 0);
@@ -127,7 +158,7 @@ export default function Dashboard() {
       });
 
       const lines: VendorLine[] = [
-        { id: 'depot', name: 'Dépôt (moi)', ca: byVendor['depot']?.ca || 0, nb: byVendor['depot']?.nb || 0, pieces: depotPieces, achat: depotAchat },
+        { id: 'depot', name: 'Dépôt (moi)', ca: byVendor['depot']?.ca || 0, nb: byVendor['depot']?.nb || 0, pieces: depotPieces, achat: depotAchat, verse: 0, delai: null },
         ...((vendors as any) || []).map((v: any) => ({
           id: v.id,
           name: v.name,
@@ -135,6 +166,8 @@ export default function Dashboard() {
           nb: byVendor[v.id]?.nb || 0,
           pieces: piecesByVendor[v.id] || 0,
           achat: achatByVendor[v.id] || 0,
+          verse: verseByVendor[v.id] || 0,
+          delai: delaiByVendor[v.id] ?? null,
         })),
       ].sort((a, b) => b.ca - a.ca);
 
@@ -285,9 +318,17 @@ export default function Dashboard() {
                     <span className="text-ink font-medium">{l.name}</span>
                     <span className="font-semibold text-ink">{fmt(l.ca)} <span className="text-ink/40 text-xs font-normal">CA du mois</span></span>
                   </div>
-                  <p className="text-ink/50 text-xs mb-1">
+                  <p className="text-ink/50 text-xs">
                     {fmtQty(l.pieces)} pièce{l.pieces > 1 ? 's' : ''} en stock · valeur d&apos;achat {fmt(l.achat)} · {l.nb} vente{l.nb > 1 ? 's' : ''} ce mois
                   </p>
+                  {l.id !== 'depot' && (
+                    <p className="text-xs mb-1">
+                      <span className="text-emerald-600 font-medium">déjà versé {fmt(l.verse)}</span>
+                      <span className="text-ink/50">
+                        {l.delai != null ? ` · paie en ~${l.delai} j en moyenne` : ' · délai de paiement : pas encore mesuré'}
+                      </span>
+                    </p>
+                  )}
                   <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(13,43,78,0.08)' }}>
                     <div
                       className="h-full rounded-full"

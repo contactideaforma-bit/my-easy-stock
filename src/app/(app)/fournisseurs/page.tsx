@@ -17,10 +17,11 @@ export default function FournisseursPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [tab, setTab] = useState<'commandes' | 'fournisseurs'>('commandes');
 
-  // nouveau fournisseur
+  // fiche fournisseur (création ou édition)
+  const emptySupplier = { id: '', name: '', contact_name: '', phone: '', email: '', address: '', notes: '' };
   const [addingSupplier, setAddingSupplier] = useState(false);
-  const [sName, setSName] = useState('');
-  const [sPhone, setSPhone] = useState('');
+  const [sForm, setSForm] = useState(emptySupplier);
+  const [supStats, setSupStats] = useState<Record<string, { nb: number; pieces: number; total: number }>>({});
 
   // nouvelle commande
   const [ordering, setOrdering] = useState(false);
@@ -47,6 +48,20 @@ export default function FournisseursPage() {
     ]);
     setSuppliers((s as any) || []);
     setPurchases((p as any) || []);
+
+    // Historique d'achats par fournisseur (commandes reçues)
+    const { data: allP } = await sb.from('purchases').select('supplier_id,status,purchase_items(qty,unit_cost)');
+    const stats: Record<string, { nb: number; pieces: number; total: number }> = {};
+    ((allP as any[]) || []).forEach((pu) => {
+      if (!pu.supplier_id || pu.status === 'annulee') return;
+      const st = (stats[pu.supplier_id] = stats[pu.supplier_id] || { nb: 0, pieces: 0, total: 0 });
+      st.nb += 1;
+      (pu.purchase_items || []).forEach((it: any) => {
+        st.pieces += it.qty;
+        st.total += it.qty * Number(it.unit_cost || 0);
+      });
+    });
+    setSupStats(stats);
   }, []);
 
   useEffect(() => {
@@ -71,11 +86,25 @@ export default function FournisseursPage() {
     return () => clearTimeout(t);
   }, [q]);
 
-  async function addSupplier() {
-    if (!sName.trim()) return;
-    await supabase().from('suppliers').insert({ name: sName.trim(), phone: sPhone.trim() || null });
-    setSName('');
-    setSPhone('');
+  async function saveSupplier() {
+    if (!sForm.name.trim()) return;
+    const payload = {
+      name: sForm.name.trim(),
+      contact_name: sForm.contact_name.trim() || null,
+      phone: sForm.phone.trim() || null,
+      email: sForm.email.trim() || null,
+      address: sForm.address.trim() || null,
+      notes: sForm.notes.trim() || null,
+    };
+    const sb = supabase();
+    const { error } = sForm.id
+      ? await sb.from('suppliers').update(payload).eq('id', sForm.id)
+      : await sb.from('suppliers').insert(payload);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setSForm(emptySupplier);
     setAddingSupplier(false);
     load();
   }
@@ -202,26 +231,75 @@ export default function FournisseursPage() {
 
       {tab === 'fournisseurs' && (
         <>
-          <button className="btn-glass w-full" onClick={() => setAddingSupplier(!addingSupplier)}>
+          <button
+            className="btn-glass w-full"
+            onClick={() => {
+              setSForm(emptySupplier);
+              setAddingSupplier(!addingSupplier);
+            }}
+          >
             <IconPlus className="w-4 h-4" /> Nouveau fournisseur
           </button>
           {addingSupplier && (
-            <div className="glass p-4 space-y-3">
-              <input className="input" placeholder="Nom *" value={sName} onChange={(e) => setSName(e.target.value)} />
-              <input className="input" placeholder="Téléphone" value={sPhone} onChange={(e) => setSPhone(e.target.value)} />
-              <button className="btn-primary w-full" onClick={addSupplier}>Ajouter</button>
+            <div className="glass-strong p-4 space-y-3">
+              <h2 className="section-title">{sForm.id ? 'Modifier le fournisseur' : 'Nouveau fournisseur'}</h2>
+              <div className="grid grid-cols-2 gap-2">
+                <input className="input" placeholder="Nom *" value={sForm.name} onChange={(e) => setSForm({ ...sForm, name: e.target.value })} />
+                <input className="input" placeholder="Contact (interlocuteur)" value={sForm.contact_name} onChange={(e) => setSForm({ ...sForm, contact_name: e.target.value })} />
+                <input className="input" placeholder="Téléphone" value={sForm.phone} onChange={(e) => setSForm({ ...sForm, phone: e.target.value })} />
+                <input className="input" type="email" placeholder="Email" value={sForm.email} onChange={(e) => setSForm({ ...sForm, email: e.target.value })} />
+              </div>
+              <input className="input" placeholder="Adresse" value={sForm.address} onChange={(e) => setSForm({ ...sForm, address: e.target.value })} />
+              <input className="input" placeholder="Notes (conditions, délais, minimums…)" value={sForm.notes} onChange={(e) => setSForm({ ...sForm, notes: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <button className="btn-glass" onClick={() => { setAddingSupplier(false); setSForm(emptySupplier); }}>Annuler</button>
+                <button className="btn-primary" onClick={saveSupplier}>{sForm.id ? 'Enregistrer' : 'Ajouter'}</button>
+              </div>
             </div>
           )}
-          <div className="glass p-2">
+          <div className="space-y-3">
             {suppliers.length === 0 ? (
-              <p className="p-4 text-center text-ink/55 text-sm">Aucun fournisseur.</p>
+              <div className="glass p-4">
+                <p className="p-4 text-center text-ink/55 text-sm">Aucun fournisseur. Créez vos fiches pour garder contacts, conditions et historique d&apos;achats au même endroit.</p>
+              </div>
             ) : (
-              suppliers.map((s) => (
-                <div key={s.id} className="p-3">
-                  <p className="text-ink font-medium text-sm">{s.name}</p>
-                  {s.phone && <p className="text-ink/45 text-xs">{s.phone}</p>}
-                </div>
-              ))
+              suppliers.map((s) => {
+                const st = supStats[s.id];
+                return (
+                  <button
+                    key={s.id}
+                    className="glass p-4 w-full text-left transition active:scale-[0.99]"
+                    onClick={() => {
+                      setSForm({
+                        id: s.id,
+                        name: s.name || '',
+                        contact_name: s.contact_name || '',
+                        phone: s.phone || '',
+                        email: s.email || '',
+                        address: s.address || '',
+                        notes: s.notes || '',
+                      });
+                      setAddingSupplier(true);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-ink font-semibold">{s.name}</p>
+                      {st && <p className="text-crystal-700 text-sm font-semibold shrink-0">{fmt(st.total)} <span className="text-ink/40 text-xs font-normal">d&apos;achats</span></p>}
+                    </div>
+                    <p className="text-ink/55 text-xs mt-0.5">
+                      {[s.contact_name, s.phone, s.email].filter(Boolean).join(' · ') || 'Coordonnées à compléter — touchez pour éditer'}
+                    </p>
+                    {s.address && <p className="text-ink/45 text-xs">{s.address}</p>}
+                    {st && (
+                      <p className="text-ink/45 text-xs mt-1">
+                        {st.nb} commande{st.nb > 1 ? 's' : ''} · {fmtQty(st.pieces)} pièce{st.pieces > 1 ? 's' : ''} au total
+                      </p>
+                    )}
+                    {s.notes && <p className="text-ink/45 text-xs italic mt-1">{s.notes}</p>}
+                  </button>
+                );
+              })
             )}
           </div>
         </>
