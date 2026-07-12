@@ -127,8 +127,8 @@ export default function LotDocumentPage() {
                 <td className="px-3 py-2">{it.product_variants?.products?.name}</td>
                 <td className="px-3 py-2 text-gray-500">{it.product_variants ? variantLabel(it.product_variants) : ''}</td>
                 <td className="px-3 py-2 text-right font-semibold">{fmtQty(it.qty)}</td>
-                <td className="px-3 py-2 text-right">{fmt(linePrice(it))}</td>
-                <td className="px-3 py-2 text-right">{fmt(it.qty * linePrice(it))}</td>
+                <td className="px-3 py-2 text-right">{it.agreed_price != null && Number(it.agreed_price) === 0 ? '🎁 Offert' : fmt(linePrice(it))}</td>
+                <td className="px-3 py-2 text-right">{it.agreed_price != null && Number(it.agreed_price) === 0 ? '—' : fmt(it.qty * linePrice(it))}</td>
               </tr>
             ))}
           </tbody>

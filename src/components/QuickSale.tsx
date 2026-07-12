@@ -9,7 +9,7 @@ import { IconCheck, IconInvoice, IconShare, IconTrash } from '@/components/Icons
 import { customerLabel } from '@/lib/types';
 import type { Customer, PriceTier, Product, Variant, Vendor } from '@/lib/types';
 
-type Line = { variant: Variant; qty: number; price: number; touched?: boolean };
+type Line = { variant: Variant; qty: number; price: number; gift: number; touched?: boolean };
 type ResRow = { variant_id: string; qty: number; vendor_id: string };
 
 /**
@@ -40,8 +40,8 @@ export default function QuickSale({
   const [agreedMap, setAgreedMap] = useState<Record<string, number>>({});
   const [tiers, setTiers] = useState<PriceTier[]>([]);
   const [resRows, setResRows] = useState<ResRow[]>([]);
-  const [dueType, setDueType] = useState<'ventes' | 'montant' | 'pourcentage'>('ventes');
-  const [dueRate, setDueRate] = useState('');
+  const [dueType, setDueType] = useState<'ventes' | 'montant' | 'marge'>('ventes');
+  const [dueMargin, setDueMargin] = useState(''); // € gagnés par pièce payante
   const [dueAmount, setDueAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [newMode, setNewMode] = useState(false);
@@ -132,8 +132,15 @@ export default function QuickSale({
         return next;
       }
       if (max < 1) return prev;
-      return [...prev, { variant: v, qty: 1, price: autoPrice(v, 1) }];
+      return [...prev, { variant: v, qty: 1, price: autoPrice(v, 1), gift: 0 }];
     });
+  }
+
+  /** Pièces offertes (cadeau) sur une ligne — sortent du stock mais ne comptent pas dans le dû */
+  function setGift(variantId: string, gift: number) {
+    setLines((prev) =>
+      prev.map((x) => (x.variant.id === variantId ? { ...x, gift: Math.max(0, Math.min(Math.floor(gift) || 0, x.qty)) } : x))
+    );
   }
 
   function setQty(variantId: string, qty: number) {
@@ -145,7 +152,9 @@ export default function QuickSale({
       return qty <= 0
         ? prev.filter((x) => x.variant.id !== variantId)
         : prev.map((x) =>
-            x.variant.id === variantId ? { ...x, qty: q, price: x.touched ? x.price : autoPrice(x.variant, q) } : x
+            x.variant.id === variantId
+              ? { ...x, qty: q, gift: Math.min(x.gift, q), price: x.touched ? x.price : autoPrice(x.variant, q) }
+              : x
           );
     });
   }
@@ -154,18 +163,21 @@ export default function QuickSale({
     setLines((prev) => prev.map((x) => (x.variant.id === variantId ? { ...x, price: Math.max(0, price), touched: true } : x)));
   }
 
-  const totalVente = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const nbPieces = lines.reduce((s, l) => s + l.qty, 0);
+  const nbCadeaux = lines.reduce((s, l) => s + (target === 'revendeur' ? l.gift : 0), 0);
+  const nbPayantes = nbPieces - nbCadeaux;
+  // La valeur du lot / de la vente ne compte que les pièces payantes (les cadeaux sortent du stock à 0 €)
+  const totalVente = lines.reduce((s, l) => s + (l.qty - (target === 'revendeur' ? l.gift : 0)) * l.price, 0);
   const totalAchat = lines.reduce((s, l) => s + l.qty * Number(product.purchase_price), 0);
   const benefice = totalVente - totalAchat;
-  const nbPieces = lines.reduce((s, l) => s + l.qty, 0);
   const catalogue = Number(product.sale_price);
   const pMin = product.price_min != null ? Number(product.price_min) : null;
   const pMax = product.price_max != null ? Number(product.price_max) : null;
   const lotDue =
     dueType === 'montant'
       ? Math.max(0, Number(dueAmount) || 0)
-      : dueType === 'pourcentage'
-        ? Math.round(totalVente * (Math.max(0, Number(dueRate) || 0))) / 100
+      : dueType === 'marge'
+        ? Math.round((totalAchat + Math.max(0, Number(dueMargin) || 0) * nbPayantes) * 100) / 100
         : null;
 
   async function createContact() {
@@ -219,18 +231,26 @@ export default function QuickSale({
         setError('Indiquez le montant à reverser pour ce lot.');
         return;
       }
-      if (dueType === 'pourcentage' && !Number(dueRate)) {
-        setError('Indiquez le pourcentage à reverser.');
+      if (dueType === 'marge' && !Number(dueMargin)) {
+        setError('Indiquez combien vous voulez gagner par pièce.');
         return;
       }
       setBusy(true);
       setError('');
+      // Les cadeaux partent en premier (prix 0) pour ne pas écraser le prix convenu des pièces payantes
+      const giftItems = lines
+        .filter((l) => l.gift > 0)
+        .map((l) => ({ variant_id: l.variant.id, qty: l.gift, agreed_price: 0 }));
+      const paidItems = lines
+        .filter((l) => l.qty - l.gift > 0)
+        .map((l) => ({ variant_id: l.variant.id, qty: l.qty - l.gift, agreed_price: l.price }));
       const { data: allocId, error: err } = await supabase().rpc('allocate_to_vendor', {
         p_vendor_id: vendorId,
-        p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, agreed_price: l.price })),
+        p_items: [...giftItems, ...paidItems],
         p_direction: 'sortie',
-        p_due_type: dueType,
-        p_due_rate: dueType === 'pourcentage' ? Number(dueRate) : null,
+        // « Marge par pièce » est enregistrée comme un montant fixe calculé (achat + marge × pièces payantes)
+        p_due_type: dueType === 'marge' ? 'montant' : dueType,
+        p_due_rate: null,
         p_due_amount: lotDue,
       });
       if (!err && dueDate && allocId) {
@@ -434,7 +454,7 @@ export default function QuickSale({
                   disabled={d === 0}
                   onClick={() => tapVariant(v)}
                 >
-                  {variantLabel(v)} {n > 0 ? `×${fmtQty(n)}` : `(${fmtQty(d)})`}
+                  {variantLabel(v)} {n > 0 ? `×${fmtQty(n)} ` : ''}({fmtQty(d)})
                 </button>
               );
             })}
@@ -479,6 +499,21 @@ export default function QuickSale({
                   onChange={(e) => setPrice(l.variant.id, Number(e.target.value))}
                   aria-label="Prix unitaire"
                 />
+                {target === 'revendeur' && (
+                  <span className="flex items-center gap-0.5 shrink-0" title="Pièces offertes (cadeau) — sortent du stock, non comptées dans le dû">
+                    <span className="text-sm">🎁</span>
+                    <input
+                      className="input !w-11 !py-1 !px-1 !rounded-lg text-center text-sm"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={l.qty}
+                      value={l.gift}
+                      onChange={(e) => setGift(l.variant.id, Number(e.target.value))}
+                      aria-label="Pièces offertes"
+                    />
+                  </span>
+                )}
                 {pMin != null && l.price < pMin ? (
                   <span className="chip chip-danger !text-[10px] !px-1.5 shrink-0" title={`Sous le prix minimum ${fmt(pMin)}`}>&lt; min {fmt(pMin)}</span>
                 ) : pMax != null && l.price > pMax ? (
@@ -499,7 +534,10 @@ export default function QuickSale({
           <div className="glass !rounded-2xl p-3 grid grid-cols-4 text-center">
             <div>
               <p className="text-ink/50 text-[11px]">Pièces</p>
-              <p className="font-semibold text-ink text-sm">{fmtQty(nbPieces)}</p>
+              <p className="font-semibold text-ink text-sm">
+                {fmtQty(nbPieces)}
+                {nbCadeaux > 0 && <span className="block text-[10px] font-normal text-crystal-700">dont {fmtQty(nbCadeaux)} 🎁</span>}
+              </p>
             </div>
             <div>
               <p className="text-ink/50 text-[11px]">Achat</p>
@@ -527,7 +565,7 @@ export default function QuickSale({
                 {([
                   ['ventes', 'Au réel'],
                   ['montant', 'Montant fixe'],
-                  ['pourcentage', '% du lot'],
+                  ['marge', 'Marge / pièce'],
                 ] as const).map(([t, label]) => (
                   <button
                     key={t}
@@ -555,22 +593,31 @@ export default function QuickSale({
                   <span className="text-ink/40 text-sm">€</span>
                 </div>
               )}
-              {dueType === 'pourcentage' && (
-                <div className="flex items-center gap-2 mt-2">
-                  <input
-                    className="input !py-2 w-24 text-center"
-                    type="number"
-                    step="1"
-                    inputMode="decimal"
-                    placeholder="%"
-                    value={dueRate}
-                    onChange={(e) => setDueRate(e.target.value)}
-                  />
-                  <span className="text-ink/40 text-sm">%</span>
-                  {[50, 60, 70].map((p) => (
-                    <button key={p} className="chip active:scale-95" onClick={() => setDueRate(String(p))}>{p} %</button>
-                  ))}
-                </div>
+              {dueType === 'marge' && (
+                <>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-ink/55 text-xs shrink-0">Je veux gagner</span>
+                    <input
+                      className="input !py-2 w-24 text-center"
+                      type="number"
+                      step="0.5"
+                      inputMode="decimal"
+                      placeholder="4"
+                      value={dueMargin}
+                      onChange={(e) => setDueMargin(e.target.value)}
+                    />
+                    <span className="text-ink/55 text-xs shrink-0">€ / pièce</span>
+                    {[2, 4, 5].map((m) => (
+                      <button key={m} className="chip active:scale-95" onClick={() => setDueMargin(String(m))}>{m} €</button>
+                    ))}
+                  </div>
+                  {Number(dueMargin) > 0 && (
+                    <p className="text-ink/55 text-xs mt-2">
+                      Dû calculé : achat {fmt(totalAchat)} + {fmt(Number(dueMargin))} × {fmtQty(nbPayantes)} pièce{nbPayantes > 1 ? 's' : ''} payante{nbPayantes > 1 ? 's' : ''} ={' '}
+                      <span className="font-semibold text-ink">{fmt(lotDue || 0)}</span>
+                    </p>
+                  )}
+                </>
               )}
               {/* Échéance de reversement */}
               <div className="flex items-center gap-2 mt-3">

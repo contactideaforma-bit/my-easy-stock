@@ -11,7 +11,7 @@ import { IconBack, IconPlus, IconCash, IconTrash, IconScan, IconInvoice } from '
 import type { Product, Reservation, Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
 
 type VariantHit = Omit<Variant, 'products'> & { products: { name: string; sale_price: number; purchase_price: number } };
-type LotLine = { variant: VariantHit; qty: number; price: number };
+type LotLine = { variant: VariantHit; qty: number; price: number; gift: number };
 type VendorSale = { id: string; number: number; total: number; created_at: string };
 type LotRow = {
   id: string;
@@ -56,8 +56,8 @@ export default function VendeurDetailPage() {
   const [allocating, setAllocating] = useState(false);
   const [lotPicker, setLotPicker] = useState(false);
   const [lines, setLines] = useState<LotLine[]>([]);
-  const [dueType, setDueType] = useState<'ventes' | 'montant' | 'pourcentage'>('ventes');
-  const [dueRate, setDueRate] = useState('');
+  const [dueType, setDueType] = useState<'ventes' | 'montant' | 'marge'>('ventes');
+  const [dueMargin, setDueMargin] = useState(''); // € gagnés par pièce payante
   const [dueAmount, setDueAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [forfaits, setForfaits] = useState<{ sum: number; count: number }>({ sum: 0, count: 0 });
@@ -187,7 +187,7 @@ export default function VendeurDetailPage() {
     setLines((prev) =>
       prev.find((l) => l.variant.id === v.id)
         ? prev
-        : [...prev, { variant: hit, qty: 1, price: agreedMap[v.id] ?? Number(p.sale_price) }]
+        : [...prev, { variant: hit, qty: 1, price: agreedMap[v.id] ?? Number(p.sale_price), gift: 0 }]
     );
   }
 
@@ -249,13 +249,17 @@ export default function VendeurDetailPage() {
     load();
   }
 
-  const lotValue = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const lotPieces = lines.reduce((s, l) => s + l.qty, 0);
+  const lotGifts = lines.reduce((s, l) => s + l.gift, 0);
+  const lotPaid = lotPieces - lotGifts;
+  // Valeur du lot : pièces payantes uniquement (les cadeaux sortent du stock à 0 €)
+  const lotValue = lines.reduce((s, l) => s + (l.qty - l.gift) * l.price, 0);
   const lotCost = lines.reduce((s, l) => s + l.qty * l.variant.products.purchase_price, 0);
   const lotDue =
     dueType === 'montant'
       ? Math.max(0, Number(dueAmount) || 0)
-      : dueType === 'pourcentage'
-        ? Math.round(lotValue * (Math.max(0, Number(dueRate) || 0)) ) / 100
+      : dueType === 'marge'
+        ? Math.round((lotCost + Math.max(0, Number(dueMargin) || 0) * lotPaid) * 100) / 100
         : null;
 
   async function giveLot() {
@@ -264,18 +268,24 @@ export default function VendeurDetailPage() {
       setError('Indiquez le montant à reverser pour ce lot.');
       return;
     }
-    if (dueType === 'pourcentage' && !Number(dueRate)) {
-      setError('Indiquez le pourcentage à reverser.');
+    if (dueType === 'marge' && !Number(dueMargin)) {
+      setError('Indiquez combien vous voulez gagner par pièce.');
       return;
     }
     setBusy(true);
     setError('');
+    // Les cadeaux partent en premier (prix 0) pour ne pas écraser le prix convenu des pièces payantes
+    const giftItems = lines.filter((l) => l.gift > 0).map((l) => ({ variant_id: l.variant.id, qty: l.gift, agreed_price: 0 }));
+    const paidItems = lines
+      .filter((l) => l.qty - l.gift > 0)
+      .map((l) => ({ variant_id: l.variant.id, qty: l.qty - l.gift, agreed_price: l.price }));
     const { data: allocId, error: err } = await supabase().rpc('allocate_to_vendor', {
       p_vendor_id: id,
-      p_items: lines.map((l) => ({ variant_id: l.variant.id, qty: l.qty, agreed_price: l.price })),
+      p_items: [...giftItems, ...paidItems],
       p_direction: 'sortie',
-      p_due_type: dueType,
-      p_due_rate: dueType === 'pourcentage' ? Number(dueRate) : null,
+      // « Marge par pièce » est enregistrée comme montant fixe calculé (achat + marge × pièces payantes)
+      p_due_type: dueType === 'marge' ? 'montant' : dueType,
+      p_due_rate: null,
       p_due_amount: lotDue,
     });
     if (err) {
@@ -289,7 +299,7 @@ export default function VendeurDetailPage() {
     setBusy(false);
     setLines([]);
     setDueType('ventes');
-    setDueRate('');
+    setDueMargin('');
     setDueAmount('');
     setDueDate('');
     setAllocating(false);
@@ -319,7 +329,7 @@ export default function VendeurDetailPage() {
         next[i] = { ...next[i], qty: next[i].qty + 1 };
         return next;
       }
-      return [...prev, { variant: v, qty: 1, price: agreedMap[v.id] ?? Number(v.products.sale_price) }];
+      return [...prev, { variant: v, qty: 1, price: agreedMap[v.id] ?? Number(v.products.sale_price), gift: 0 }];
     });
   }
 
@@ -566,6 +576,21 @@ export default function VendeurDetailPage() {
                 }
                 aria-label="Prix convenu"
               />
+              <span className="flex items-center gap-0.5 shrink-0" title="Pièces offertes (cadeau) — sortent du stock, non comptées dans le dû">
+                <span className="text-sm">🎁</span>
+                <input
+                  className="input !w-11 !py-1.5 !px-1 text-center text-sm"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={l.qty}
+                  value={l.gift}
+                  onChange={(e) =>
+                    setLines(lines.map((x, j) => (j === i ? { ...x, gift: Math.max(0, Math.min(Math.floor(Number(e.target.value)) || 0, x.qty)) } : x)))
+                  }
+                  aria-label="Pièces offertes"
+                />
+              </span>
               <button className="text-rose-500/80" onClick={() => setLines(lines.filter((_, j) => j !== i))}>
                 <IconTrash className="w-4 h-4" />
               </button>
@@ -584,7 +609,7 @@ export default function VendeurDetailPage() {
                   {([
                     ['ventes', 'Au réel'],
                     ['montant', 'Montant fixe'],
-                    ['pourcentage', '% du lot'],
+                    ['marge', 'Marge / pièce'],
                   ] as const).map(([t, label]) => (
                     <button
                       key={t}
@@ -614,22 +639,31 @@ export default function VendeurDetailPage() {
                     <span className="text-ink/40 text-sm">€</span>
                   </div>
                 )}
-                {dueType === 'pourcentage' && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <input
-                      className="input !py-2 w-24 text-center"
-                      type="number"
-                      step="1"
-                      inputMode="decimal"
-                      placeholder="%"
-                      value={dueRate}
-                      onChange={(e) => setDueRate(e.target.value)}
-                    />
-                    <span className="text-ink/40 text-sm">%</span>
-                    {[50, 60, 70].map((p) => (
-                      <button key={p} className="chip active:scale-95" onClick={() => setDueRate(String(p))}>{p} %</button>
-                    ))}
-                  </div>
+                {dueType === 'marge' && (
+                  <>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-ink/55 text-xs shrink-0">Je veux gagner</span>
+                      <input
+                        className="input !py-2 w-24 text-center"
+                        type="number"
+                        step="0.5"
+                        inputMode="decimal"
+                        placeholder="4"
+                        value={dueMargin}
+                        onChange={(e) => setDueMargin(e.target.value)}
+                      />
+                      <span className="text-ink/55 text-xs shrink-0">€ / pièce</span>
+                      {[2, 4, 5].map((m) => (
+                        <button key={m} className="chip active:scale-95" onClick={() => setDueMargin(String(m))}>{m} €</button>
+                      ))}
+                    </div>
+                    {Number(dueMargin) > 0 && (
+                      <p className="text-ink/55 text-xs mt-2">
+                        Dû calculé : achat {fmt(lotCost)} + {fmt(Number(dueMargin))} × {fmtQty(lotPaid)} pièce{lotPaid > 1 ? 's' : ''} payante{lotPaid > 1 ? 's' : ''} ={' '}
+                        <span className="font-semibold text-ink">{fmt(lotDue || 0)}</span>
+                      </p>
+                    )}
+                  </>
                 )}
                 {/* Échéance de reversement */}
                 <div className="flex items-center gap-2 mt-3">
@@ -657,8 +691,14 @@ export default function VendeurDetailPage() {
 
                 {/* Bénéfice en temps réel */}
                 <div className="glass !rounded-2xl p-3 mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <span className="text-ink/60">Valeur du lot (prix convenus)</span>
+                  <span className="text-ink/60">Valeur du lot (pièces payantes)</span>
                   <span className="text-right font-semibold text-ink">{fmt(lotValue)}</span>
+                  {lotGifts > 0 && (
+                    <>
+                      <span className="text-ink/60">Pièces offertes 🎁</span>
+                      <span className="text-right text-ink">{fmtQty(lotGifts)} / {fmtQty(lotPieces)}</span>
+                    </>
+                  )}
                   <span className="text-ink/60">Coût d&apos;achat du lot</span>
                   <span className="text-right text-ink">{fmt(lotCost)}</span>
                   <span className="text-ink/60">Reversement du revendeur</span>
