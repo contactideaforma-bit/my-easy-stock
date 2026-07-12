@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, fmtDay, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
 import ProductPicker from '@/components/ProductPicker';
 import Scanner from '@/components/Scanner';
+import { MyBotTip } from '@/components/MyBot';
 import { IconBack, IconPlus, IconCash, IconTrash, IconScan, IconInvoice } from '@/components/Icons';
 import type { Product, Reservation, Vendor, VendorPayment, VendorStockLine, Variant } from '@/lib/types';
 
@@ -517,6 +518,16 @@ export default function VendeurDetailPage() {
           </ul>
         )}
       </section>
+
+      <MyBotTip
+        page="vendeur-detail"
+        tips={[
+          'Astuce : « Scan en rafale » compose un lot à la chaîne — chaque bip ajoute une pièce.',
+          'Astuce : rattache chaque encaissement à un lot précis pour suivre le reste dû lot par lot.',
+          'Astuce : le champ 🎁 offre des pièces au revendeur — elles sortent du stock mais ne comptent pas dans le dû.',
+          'Astuce : réserve de la marchandise pour ce revendeur avant son passage, puis transforme la réservation en lot.',
+        ]}
+      />
 
       {/* Actions : lot + vente rapide */}
       {!allocating && (

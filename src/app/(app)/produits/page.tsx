@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty } from '@/lib/utils';
 import { IconPlus, IconSearch, IconBox } from '@/components/Icons';
-import MyBot from '@/components/MyBot';
+import MyBot, { MyBotTip } from '@/components/MyBot';
 import type { Category, Product } from '@/lib/types';
 
 export default function ProduitsPage() {
@@ -73,6 +73,16 @@ export default function ProduitsPage() {
           Mode hors-ligne — stock du {new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(offline))}
         </p>
       )}
+
+      <MyBotTip
+        page="produits"
+        tips={[
+          'Astuce : sur une fiche produit, touche le chiffre de stock d’une variante pour saisir directement le stock exact.',
+          'Astuce : « 📷 Bon d’achat » crée tous les articles d’un bon fournisseur automatiquement — tu vérifies avant l’entrée en stock.',
+          'Astuce : définis des prix dégressifs par quantité sur la fiche produit — le prix se remplira seul selon la quantité.',
+          'Astuce : renseigne « pièces par carton » sur un produit pour ajouter carton par carton dans les lots.',
+        ]}
+      />
 
       <div className="relative">
         <IconSearch className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-ink/45" />

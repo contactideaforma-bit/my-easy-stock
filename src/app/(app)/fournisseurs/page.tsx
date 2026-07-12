@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { daysAgo, fmt, fmtDay, fmtQty, variantLabel } from '@/lib/utils';
 import { IconBack, IconPlus, IconSearch, IconTrash } from '@/components/Icons';
-import MyBot from '@/components/MyBot';
+import MyBot, { MyBotTip } from '@/components/MyBot';
 import type { Purchase, Supplier, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; purchase_price: number } };
@@ -230,6 +230,15 @@ export default function FournisseursPage() {
 
       {tab === 'commandes' && (
         <>
+          <MyBotTip
+            page="fournisseurs"
+            pose="restock"
+            tips={[
+              'Astuce : « Suggestion de réassort » compare la demande des 30 derniers jours au stock restant et pré-remplit la commande.',
+              'Astuce : réceptionner une commande incrémente automatiquement le stock du dépôt.',
+              'Astuce : scanne le bon fournisseur à la livraison — je rapproche chaque ligne de ton catalogue.',
+            ]}
+          />
           <Link href="/fournisseurs/scan" className="btn-accent w-full !py-3">
             📷 Scanner un bon d&apos;achat (extraction automatique)
           </Link>

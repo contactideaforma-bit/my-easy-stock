@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 /**
  * My-bot — la mascotte de l'appli 🤖📦
  * Poses disponibles (fichiers dans /public/mybot/) :
@@ -45,6 +47,47 @@ export default function MyBot({
           <span className="relative">{message}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * My-bot en mode guide : une astuce d'utilisation par page, qui change chaque jour.
+ * Le ✕ masque les astuces de la page pendant 14 jours (mémorisé sur l'appareil).
+ */
+export function MyBotTip({ page, tips, pose = 'happy' }: { page: string; tips: string[]; pose?: MyBotPose }) {
+  const [visible, setVisible] = useState(false);
+  const [tip, setTip] = useState('');
+
+  useEffect(() => {
+    try {
+      const off = Number(localStorage.getItem(`mybot_tips_off_${page}`) || 0);
+      if (off && Date.now() - off < 14 * 86400000) return;
+    } catch {}
+    // Rotation quotidienne parmi les astuces de la page
+    const day = Math.floor(Date.now() / 86400000);
+    setTip(tips[day % tips.length]);
+    setVisible(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  if (!visible || !tip) return null;
+  return (
+    <div className="relative">
+      <MyBot pose={pose} size={64} message={tip} />
+      <button
+        className="absolute -top-1 right-0 text-ink/35 text-lg leading-none p-1"
+        aria-label="Masquer les astuces de cette page"
+        title="Masquer les astuces de cette page (14 jours)"
+        onClick={() => {
+          try {
+            localStorage.setItem(`mybot_tips_off_${page}`, String(Date.now()));
+          } catch {}
+          setVisible(false);
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 }

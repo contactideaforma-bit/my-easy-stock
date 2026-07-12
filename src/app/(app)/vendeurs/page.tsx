@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty, startOfDay } from '@/lib/utils';
 import { IconPlus, IconUsers } from '@/components/Icons';
+import { MyBotTip } from '@/components/MyBot';
 import type { Vendor } from '@/lib/types';
 
 type VendorRow = Vendor & { pieces: number; stockAchat: number; caMois: number; nbVentes: number; du: number };
@@ -93,6 +94,15 @@ export default function VendeursPage() {
           <IconPlus className="w-4 h-4" /> Revendeur
         </button>
       </header>
+
+      <MyBotTip
+        page="vendeurs"
+        tips={[
+          'Astuce : fixe une échéance quand tu remets un lot — je t’alerte sur l’accueil dès qu’un reversement est en retard.',
+          'Astuce : le montant bleu = valeur d’achat du stock que détient le revendeur ; « doit » = ce qu’il te reste à encaisser.',
+          'Astuce : chaque lot remis génère un bon de remise imprimable à donner ou envoyer au revendeur.',
+        ]}
+      />
 
       {adding && (
         <div className="glass-strong p-4 space-y-3">

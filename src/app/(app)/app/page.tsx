@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [vendorLines, setVendorLines] = useState<VendorLine[]>([]);
   const [overdue, setOverdue] = useState<OverdueLot[]>([]);
   const [lowStock, setLowStock] = useState<LowStock[]>([]);
+  const [lowCount, setLowCount] = useState(0); // nombre RÉEL de variantes sous le seuil (pas seulement les 6 affichées)
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [name, setName] = useState('');
   // 🥚 Easter egg : 7 taps rapides sur « Bonjour » lancent le mini-jeu
@@ -70,7 +71,9 @@ export default function Dashboard() {
       const vendPieces = (vendorStock || []).reduce((s: number, r: any) => s + r.qty, 0);
       const vendAchat = (vendorStock || []).reduce(
         (s: number, r: any) => s + r.qty * Number(r.product_variants?.products?.purchase_price || 0), 0);
-      const low = active.filter((v: any) => v.stock <= v.products.low_stock_threshold).slice(0, 6);
+      const lowAll = active.filter((v: any) => v.stock <= v.products.low_stock_threshold);
+      const low = lowAll.slice(0, 6);
+      setLowCount(lowAll.length);
 
       // Ventes du mois par revendeur
       const byVendor: Record<string, { ca: number; nb: number }> = {};
@@ -167,12 +170,12 @@ export default function Dashboard() {
 
       {/* My-bot commente l'état du jour */}
       <MyBot
-        pose={overdue.length > 0 ? 'panique' : lowStock.length > 0 ? 'confus' : 'happy'}
+        pose={overdue.length > 0 ? 'panique' : lowCount > 0 ? 'confus' : 'happy'}
         message={
           overdue.length > 0
             ? `${overdue.length} reversement${overdue.length > 1 ? 's' : ''} en retard — on va les récupérer !`
-            : lowStock.length > 0
-              ? `Stock bas sur ${lowStock.length} article${lowStock.length > 1 ? 's' : ''} : pense au réassort.`
+            : lowCount > 0
+              ? `${fmtQty(lowCount)} variante${lowCount > 1 ? 's' : ''} sous le seuil d'alerte (liste plus bas). Astuce : « Suggestion de réassort » dans Fournisseurs prépare la commande.`
               : 'Tout roule ! Stock et reversements sous contrôle.'
         }
       />
@@ -288,7 +291,9 @@ export default function Dashboard() {
         <section className="glass p-4">
           <div className="flex items-center gap-2 mb-3">
             <IconAlert className="w-5 h-5 text-orange-500" />
-            <h2 className="section-title !text-orange-700/80">Stock dépôt bas</h2>
+            <h2 className="section-title !text-orange-700/80">
+              Stock dépôt bas {lowCount > 6 ? `(6 sur ${fmtQty(lowCount)})` : ''}
+            </h2>
           </div>
           <ul className="space-y-2">
             {lowStock.map((v) => (

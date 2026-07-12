@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty, daysAgo, variantLabel } from '@/lib/utils';
 import { downloadCSV, csvNumber } from '@/lib/csv';
 import { IconBack, IconDownload } from '@/components/Icons';
+import { MyBotTip } from '@/components/MyBot';
 
 type Row = {
   number: number;
@@ -165,6 +166,15 @@ export default function StatsPage() {
         <Link href="/plus" className="btn-glass !p-2"><IconBack /></Link>
         <h1 className="text-xl font-bold text-ink flex-1">Statistiques</h1>
       </header>
+
+      <MyBotTip
+        page="stats"
+        tips={[
+          'Astuce : le « Stock dormant » montre l’argent immobilisé — remets ces articles en lot ou solde-les.',
+          'Astuce : « Stock valorisé » exporte tout ton stock (dépôt + revendeurs) en Excel pour le comptable ou la banque.',
+          'Astuce : compare CA et marge par revendeur pour repérer ceux qui vendent bien… et ceux qui dorment.',
+        ]}
+      />
 
       <div className="glass p-1 grid grid-cols-3 gap-1">
         {PERIODS.map((p) => (

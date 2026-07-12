@@ -9,6 +9,7 @@ import ProductPicker from '@/components/ProductPicker';
 import { shareTicket, TicketData } from '@/lib/ticket';
 import { IconScan, IconSearch, IconTrash, IconCheck, IconShare, IconInvoice } from '@/components/Icons';
 import { customerLabel } from '@/lib/types';
+import { MyBotTip } from '@/components/MyBot';
 import type { CartLine, Customer, Product, Variant, Vendor } from '@/lib/types';
 
 type SearchHit = Product & { product_variants: Variant[] };
@@ -287,6 +288,15 @@ export default function CaissePage() {
           ))}
         </select>
       </header>
+
+      <MyBotTip
+        page="caisse"
+        tips={[
+          'Astuce : la caisse sert à la vente au détail occasionnelle — pour livrer un revendeur, passe par sa fiche (Remettre un lot).',
+          'Astuce : sélectionne un revendeur en haut pour enregistrer une vente faite sur SON stock (c’est lui qui est décrémenté).',
+          'Astuce : scanne les codes-barres pour ajouter les articles au panier sans les chercher.',
+        ]}
+      />
 
       {vendorId && (
         <p className="text-xs text-crystal-700 -mt-2 px-1">
