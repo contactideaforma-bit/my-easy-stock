@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
 import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
+import DeliveryRun from '@/components/DeliveryRun';
 
 type LowStock = { id: string; size: string | null; color: string | null; stock: number; products: { name: string; low_stock_threshold: number } };
 type OverdueLot = { id: string; vendorId: string; vendorName: string; date: string; dueDate: string; reste: number | null; days: number };
@@ -27,6 +28,9 @@ export default function Dashboard() {
   const [lowStock, setLowStock] = useState<LowStock[]>([]);
   const [recent, setRecent] = useState<RecentSale[]>([]);
   const [name, setName] = useState('');
+  // 🥚 Easter egg : 7 taps rapides sur « Bonjour » lancent le mini-jeu
+  const eggTaps = useRef<number[]>([]);
+  const [egg, setEgg] = useState(false);
 
   useEffect(() => {
     const sb = supabase();
@@ -143,8 +147,22 @@ export default function Dashboard() {
         <p className="text-ink/60 text-sm">
           {new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}
         </p>
-        <h1 className="text-2xl font-bold text-ink tracking-tight">Bonjour{name ? ` ${name}` : ''}</h1>
+        <h1
+          className="text-2xl font-bold text-ink tracking-tight select-none"
+          onClick={() => {
+            const now = Date.now();
+            eggTaps.current = [...eggTaps.current.filter((t) => now - t < 3000), now];
+            if (eggTaps.current.length >= 7) {
+              eggTaps.current = [];
+              setEgg(true);
+            }
+          }}
+        >
+          Bonjour{name ? ` ${name}` : ''}
+        </h1>
       </header>
+
+      {egg && <DeliveryRun onClose={() => setEgg(false)} />}
 
       {/* CA & bénéfice du mois — temps réel */}
       <div className="glass-strong p-4">
