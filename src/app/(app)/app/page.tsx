@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { fmt, fmtDate, fmtQty, variantLabel, startOfDay } from '@/lib/utils';
 import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
 import DeliveryRun from '@/components/DeliveryRun';
+import MyBot from '@/components/MyBot';
 
 type LowStock = { id: string; size: string | null; color: string | null; stock: number; products: { name: string; low_stock_threshold: number } };
 type OverdueLot = { id: string; vendorId: string; vendorName: string; date: string; dueDate: string; reste: number | null; days: number };
@@ -163,6 +164,18 @@ export default function Dashboard() {
       </header>
 
       {egg && <DeliveryRun onClose={() => setEgg(false)} />}
+
+      {/* My-bot commente l'état du jour */}
+      <MyBot
+        pose={overdue.length > 0 ? 'panique' : lowStock.length > 0 ? 'confus' : 'happy'}
+        message={
+          overdue.length > 0
+            ? `${overdue.length} reversement${overdue.length > 1 ? 's' : ''} en retard — on va les récupérer !`
+            : lowStock.length > 0
+              ? `Stock bas sur ${lowStock.length} article${lowStock.length > 1 ? 's' : ''} : pense au réassort.`
+              : 'Tout roule ! Stock et reversements sous contrôle.'
+        }
+      />
 
       {/* CA & bénéfice du mois — temps réel */}
       <div className="glass-strong p-4">

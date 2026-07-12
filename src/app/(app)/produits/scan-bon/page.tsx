@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty, generateEAN13, generateSKU } from '@/lib/utils';
 import { scanBonImage, type ScanLine } from '@/lib/scan';
 import { IconBack, IconCamera, IconCheck, IconPlus, IconTrash } from '@/components/Icons';
+import MyBot from '@/components/MyBot';
 import type { Category } from '@/lib/types';
 
 type GLine = { size: string | null; color: string | null; qty: number };
@@ -258,8 +259,8 @@ export default function ScanBonProduitsPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={preview} alt="" className="max-h-52 mx-auto rounded-2xl object-contain" />
           )}
-          <p className="text-crystal-800 animate-pulse font-medium">Lecture du bon en cours…</p>
-          <p className="text-ink/50 text-xs">Extraction des articles puis comparaison avec votre catalogue.</p>
+          <MyBot pose="scan" message="Je lis ton bon d'achat… extraction des articles puis comparaison avec le catalogue." className="justify-center" />
+          <p className="text-crystal-800 animate-pulse font-medium">Analyse en cours…</p>
         </div>
       )}
 

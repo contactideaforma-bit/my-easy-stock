@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty } from '@/lib/utils';
 import { IconPlus, IconSearch, IconBox } from '@/components/Icons';
+import MyBot from '@/components/MyBot';
 import type { Category, Product } from '@/lib/types';
 
 export default function ProduitsPage() {
@@ -99,8 +100,11 @@ export default function ProduitsPage() {
       {loading ? (
         <div className="glass p-8 text-center text-ink/55 animate-pulse">Chargement…</div>
       ) : filtered.length === 0 ? (
-        <div className="glass p-8 text-center text-ink/55">
-          {q ? 'Aucun résultat.' : 'Aucun produit. Ajoutez votre premier article !'}
+        <div className="glass p-8 space-y-4">
+          <MyBot
+            pose="happy"
+            message={q ? 'Aucun résultat pour cette recherche.' : 'Le catalogue est vide — ajoute ton premier article, ou scanne un bon d’achat et je m’occupe de tout !'}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">

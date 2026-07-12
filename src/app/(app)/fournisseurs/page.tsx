@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { daysAgo, fmt, fmtDay, fmtQty, variantLabel } from '@/lib/utils';
 import { IconBack, IconPlus, IconSearch, IconTrash } from '@/components/Icons';
+import MyBot from '@/components/MyBot';
 import type { Purchase, Supplier, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; purchase_price: number } };
@@ -246,8 +247,11 @@ export default function FournisseursPage() {
               {suggestLoading ? (
                 <p className="text-ink/55 text-sm animate-pulse">Analyse de la demande…</p>
               ) : suggestions.length === 0 ? (
-                <p className="text-ink/55 text-sm">Rien à réassortir : le stock couvre la demande. 👌</p>
+                <MyBot pose="succes" message="Rien à réassortir : le stock couvre la demande. 👌" size={72} />
               ) : (
+                <MyBot pose="restock" message={`${suggestions.length} article${suggestions.length > 1 ? 's' : ''} à recommander d'après la demande du mois !`} size={72} />
+              )}
+              {!suggestLoading && suggestions.length > 0 && (
                 <>
                   <select className="input !py-2" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                     <option value="" className="text-black">Fournisseur (optionnel)…</option>

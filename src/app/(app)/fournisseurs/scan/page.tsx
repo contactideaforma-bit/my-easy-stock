@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty, variantLabel } from '@/lib/utils';
 import { IconBack, IconCamera, IconCheck, IconSearch, IconTrash } from '@/components/Icons';
+import MyBot from '@/components/MyBot';
 import type { Supplier, Variant } from '@/lib/types';
 
 type VariantHit = Variant & { products: { name: string; purchase_price: number } };
@@ -257,8 +258,8 @@ export default function ScanBonPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={preview} alt="" className="max-h-52 mx-auto rounded-2xl object-contain" />
           )}
-          <p className="text-crystal-800 animate-pulse font-medium">Lecture du bon en cours…</p>
-          <p className="text-ink/50 text-xs">Extraction des références puis rapprochement avec votre catalogue.</p>
+          <MyBot pose="scan" message="Je lis ton bon… extraction des références puis rapprochement avec le catalogue." className="justify-center" />
+          <p className="text-crystal-800 animate-pulse font-medium">Analyse en cours…</p>
         </div>
       )}
 

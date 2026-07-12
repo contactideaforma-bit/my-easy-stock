@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtQty, variantLabel } from '@/lib/utils';
 import { shareTicket } from '@/lib/ticket';
-import { IconCheck, IconInvoice, IconShare, IconTrash } from '@/components/Icons';
+import { IconInvoice, IconShare, IconTrash } from '@/components/Icons';
+import MyBot from '@/components/MyBot';
 import { customerLabel } from '@/lib/types';
 import type { Customer, PriceTier, Product, Variant, Vendor } from '@/lib/types';
 
@@ -308,9 +309,7 @@ export default function QuickSale({
     return (
       <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onDone}>
         <div className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 text-center" onClick={(e) => e.stopPropagation()}>
-          <div className="mx-auto w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#34d399,#059669)' }}>
-            <IconCheck className="w-7 h-7 text-white" />
-          </div>
+          <MyBot pose="succes" size={72} className="justify-center" />
           {done.kind === 'lot' ? (
             <>
               <div>
