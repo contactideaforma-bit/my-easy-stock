@@ -13,7 +13,8 @@ type GLine = { size: string | null; color: string | null; qty: number };
 type Group = {
   name: string;
   purchase: string; // prix d'achat unitaire
-  sale: string; // prix de vente conseillé
+  saleMin: string; // prix de vente minimum
+  saleMax: string; // prix de vente maximum (= prix conseillé enregistré)
   categoryId: string;
   lines: GLine[];
   existing: { id: string; name: string } | null; // produit déjà au catalogue ?
@@ -36,6 +37,9 @@ export default function ScanBonProduitsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState('');
   const [done, setDone] = useState<{ created: number; updated: number; pieces: number } | null>(null);
+  // Création de catégorie à la volée : index du groupe concerné + nom saisi
+  const [newCatFor, setNewCatFor] = useState<number | null>(null);
+  const [newCatName, setNewCatName] = useState('');
 
   useEffect(() => {
     supabase().from('categories').select('*').order('name').then(({ data }) => setCategories(data || []));
@@ -73,7 +77,8 @@ export default function ScanBonProduitsPage() {
         gs.push({
           name: ls[0].designation.trim(),
           purchase: purchase ? String(purchase) : '',
-          sale: purchase ? String(Math.round((purchase * 2) / 0.5) * 0.5) : '',
+          saleMin: purchase ? String(Math.round((purchase * 1.8) / 0.5) * 0.5) : '',
+          saleMax: purchase ? String(Math.round((purchase * 2.4) / 0.5) * 0.5) : '',
           categoryId: '',
           lines: ls.map((l) => ({ size: l.size, color: l.color, qty: l.qty })),
           existing: hit && hit.length ? (hit[0] as any) : null,
@@ -94,12 +99,35 @@ export default function ScanBonProduitsPage() {
 
   const totalPieces = groups.reduce((s, g) => s + g.lines.reduce((x, l) => x + l.qty, 0), 0);
   const totalAchat = groups.reduce((s, g) => s + g.lines.reduce((x, l) => x + l.qty, 0) * (Number(g.purchase) || 0), 0);
+  const totalVenteMin = groups.reduce((s, g) => s + g.lines.reduce((x, l) => x + l.qty, 0) * (Number(g.saleMin) || 0), 0);
+  const totalVenteMax = groups.reduce((s, g) => s + g.lines.reduce((x, l) => x + l.qty, 0) * (Number(g.saleMax) || 0), 0);
+
+  async function createCategory(groupIndex: number) {
+    const n = newCatName.trim();
+    if (!n) return;
+    const { data, error: err } = await supabase().from('categories').insert({ name: n }).select().single();
+    if (err) {
+      setError(err.code === '23505' ? 'Cette catégorie existe déjà.' : err.message);
+      return;
+    }
+    setCategories((prev) => [...prev, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+    setG(groupIndex, { categoryId: (data as any).id });
+    setNewCatFor(null);
+    setNewCatName('');
+    setError('');
+  }
 
   async function save() {
     for (const g of groups) {
-      if (!g.useExisting && (!g.name.trim() || !Number(g.sale))) {
-        setError(`« ${g.name || 'Sans nom'} » : nom et prix de vente obligatoires pour créer un produit.`);
-        return;
+      if (!g.useExisting) {
+        if (!g.name.trim() || !Number(g.saleMax)) {
+          setError(`« ${g.name || 'Sans nom'} » : nom et prix de vente max obligatoires pour créer un produit.`);
+          return;
+        }
+        if (Number(g.saleMin) > Number(g.saleMax)) {
+          setError(`« ${g.name} » : le prix de vente min est supérieur au max.`);
+          return;
+        }
       }
     }
     setPhase('saving');
@@ -139,7 +167,9 @@ export default function ScanBonProduitsPage() {
               name: g.name.trim(),
               category_id: g.categoryId || null,
               purchase_price: Number(g.purchase) || 0,
-              sale_price: Number(g.sale),
+              sale_price: Number(g.saleMax), // prix conseillé = haut de fourchette
+              price_min: Number(g.saleMin) || null,
+              price_max: Number(g.saleMax) || null,
               low_stock_threshold: 3,
             })
             .select()
@@ -265,25 +295,57 @@ export default function ScanBonProduitsPage() {
               )}
 
               {!g.useExisting && (
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-ink/55 text-xs pl-1">Prix achat</label>
-                    <input className="input !py-2" type="number" step="0.01" inputMode="decimal" value={g.purchase} onChange={(e) => setG(i, { purchase: e.target.value })} />
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-ink/55 text-xs pl-1">Prix achat</label>
+                      <input className="input !py-2" type="number" step="0.01" inputMode="decimal" value={g.purchase} onChange={(e) => setG(i, { purchase: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-ink/55 text-xs pl-1">Catégorie</label>
+                      <select
+                        className="input !py-2"
+                        value={newCatFor === i ? '__new__' : g.categoryId}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') {
+                            setNewCatFor(i);
+                            setNewCatName('');
+                          } else {
+                            setNewCatFor(null);
+                            setG(i, { categoryId: e.target.value });
+                          }
+                        }}
+                      >
+                        <option value="" className="text-black">—</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id} className="text-black">{c.name}</option>
+                        ))}
+                        <option value="__new__" className="text-black">+ Nouvelle catégorie…</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-ink/55 text-xs pl-1">Prix de vente min</label>
+                      <input className="input !py-2" type="number" step="0.01" inputMode="decimal" value={g.saleMin} onChange={(e) => setG(i, { saleMin: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-ink/55 text-xs pl-1">Prix de vente max *</label>
+                      <input className="input !py-2" type="number" step="0.01" inputMode="decimal" value={g.saleMax} onChange={(e) => setG(i, { saleMax: e.target.value })} />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-ink/55 text-xs pl-1">Prix vente *</label>
-                    <input className="input !py-2" type="number" step="0.01" inputMode="decimal" value={g.sale} onChange={(e) => setG(i, { sale: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="text-ink/55 text-xs pl-1">Catégorie</label>
-                    <select className="input !py-2" value={g.categoryId} onChange={(e) => setG(i, { categoryId: e.target.value })}>
-                      <option value="" className="text-black">—</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id} className="text-black">{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                  {newCatFor === i && (
+                    <div className="flex gap-2">
+                      <input
+                        className="input !py-2 flex-1"
+                        placeholder="Nom de la nouvelle catégorie"
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && createCategory(i)}
+                        autoFocus
+                      />
+                      <button className="btn-primary !py-2 !px-4" onClick={() => createCategory(i)}>Créer</button>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="space-y-1.5">
@@ -317,9 +379,20 @@ export default function ScanBonProduitsPage() {
           ))}
 
           <div className="glass-strong p-4 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-ink/60">{groups.length} article{groups.length > 1 ? 's' : ''} · {fmtQty(totalPieces)} pièce{totalPieces > 1 ? 's' : ''}</span>
-              <span className="text-ink font-semibold">{fmt(totalAchat)} <span className="text-ink/40 text-xs font-normal">valeur d&apos;achat</span></span>
+            <p className="text-ink/60 text-sm">{groups.length} article{groups.length > 1 ? 's' : ''} · {fmtQty(totalPieces)} pièce{totalPieces > 1 ? 's' : ''}</p>
+            <div className="grid grid-cols-3 text-center glass !rounded-2xl p-3">
+              <div>
+                <p className="text-ink/50 text-[11px]">Valeur d&apos;achat</p>
+                <p className="font-semibold text-ink text-sm">{fmt(totalAchat)}</p>
+              </div>
+              <div>
+                <p className="text-ink/50 text-[11px]">Valeur vente min</p>
+                <p className="font-semibold text-ink text-sm">{fmt(totalVenteMin)}</p>
+              </div>
+              <div>
+                <p className="text-ink/50 text-[11px]">Valeur vente max</p>
+                <p className="font-semibold text-crystal-700 text-sm">{fmt(totalVenteMax)}</p>
+              </div>
             </div>
             {error && <p className="text-rose-600 text-sm">{error}</p>}
             <button className="btn-accent w-full py-4" onClick={save} disabled={phase === 'saving' || groups.length === 0}>
