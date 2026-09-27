@@ -1,5 +1,5 @@
 {
-  "name": "my-easy-stock",
+  "name": "my-assistanad",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -10,9 +10,6 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "@zxing/browser": "^0.1.5",
-    "@zxing/library": "^0.21.3",
-    "jsbarcode": "^3.11.6",
     "next": "14.2.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

@@ -1,422 +1,213 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDate, fmtQty, variantLabel, startOfDay, daysAgo } from '@/lib/utils';
-import { IconAlert, IconPlus, IconCash, IconUsers } from '@/components/Icons';
-import DeliveryRun from '@/components/DeliveryRun';
-import MyBot from '@/components/MyBot';
+import { useCabinet } from '@/components/Cabinet';
+import { Avatar, Empty, PriorityDot } from '@/components/Bits';
+import Modal from '@/components/Modal';
+import { AppointmentForm, RequestForm, TaskForm } from '@/components/Forms';
+import { IconAlert, IconChevron, IconPhone } from '@/components/Icons';
+import { TaskRow } from '@/components/TaskRow';
+import { addDays, daysBetween, eur, frDate, frTime, invoiceBalance, LABELS, todayISO } from '@/lib/utils';
+import type { Appointment, Invoice, Request, Task } from '@/lib/types';
 
-type FastMover = {
-  id: string;
-  name: string;
-  label: string;
-  stock: number;
-  qty30: number; // pièces écoulées sur 30 jours (ventes + lots remis)
-  daysLeft: number | null; // stock restant / vitesse — null si vitesse nulle
-};
-type OverdueLot = { id: string; vendorId: string; vendorName: string; date: string; dueDate: string; reste: number | null; days: number };
-type RecentSale = { id: string; number: number; total: number; payment_method: string; created_at: string; vendors: { name: string } | null };
-type VendorLine = {
-  id: string;
-  name: string;
-  ca: number;
-  nb: number;
-  pieces: number;
-  achat: number;
-  verse: number; // somme déjà reversée sur la marchandise fournie
-  delai: number | null; // délai moyen de paiement en jours (paiements rattachés à un lot)
-};
+export default function Journee() {
+  const { me, members, tick } = useCabinet();
+  const [scope, setScope] = useState<'moi' | 'tous'>('moi');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [reqs, setReqs] = useState<Request[]>([]);
+  const [appts, setAppts] = useState<Appointment[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [drafts, setDrafts] = useState(0);
+  const [cashed, setCashed] = useState(0);
+  const [autoSent, setAutoSent] = useState(0);
+  const [edit, setEdit] = useState<null | { t: 'task'; v: Task } | { t: 'req'; v: Request } | { t: 'appt'; v: Appointment }>(null);
+  const today = todayISO();
 
-function startOfMonth() {
-  const d = startOfDay();
-  d.setDate(1);
-  return d;
-}
-
-export default function Dashboard() {
-  const [kpi, setKpi] = useState({
-    caMois: 0, nbMois: 0, caToday: 0, benefMois: 0,
-    depotPieces: 0, depotAchat: 0, vendPieces: 0, vendAchat: 0,
-  });
-  const [vendorLines, setVendorLines] = useState<VendorLine[]>([]);
-  const [overdue, setOverdue] = useState<OverdueLot[]>([]);
-  const [fastMovers, setFastMovers] = useState<FastMover[]>([]);
-  const [recent, setRecent] = useState<RecentSale[]>([]);
-  const [name, setName] = useState('');
-  // 🥚 Easter egg : 7 taps rapides sur « Bonjour » lancent le mini-jeu
-  const eggTaps = useRef<number[]>([]);
-  const [egg, setEgg] = useState(false);
-
-  useEffect(() => {
+  const load = useCallback(async () => {
     const sb = supabase();
+    const monthStart = today.slice(0, 8) + '01';
+    const dayStart = new Date(today + 'T00:00:00'); const dayEnd = new Date(addDays(today, 2) + 'T00:00:00');
+    const mine = scope === 'moi';
+    let tq = sb.from('mya_tasks').select('*, mya_clients(name)').neq('status', 'fait').lte('due_date', addDays(today, 1)).order('due_date').order('priority', { ascending: false });
+    let rq = sb.from('mya_requests').select('*, mya_clients(name)').neq('status', 'traitee').order('received_at', { ascending: false }).limit(12);
+    let aq = sb.from('mya_appointments').select('*, mya_clients(name,phone,email)').gte('starts_at', dayStart.toISOString()).lt('starts_at', dayEnd.toISOString()).neq('status', 'annule').order('starts_at');
+    if (mine) { tq = tq.eq('assigned_to', me.user_id); rq = rq.or(`assigned_to.eq.${me.user_id},assigned_to.is.null`); aq = aq.eq('member_id', me.user_id); }
+    const [t, r, a, inv, dr, pay, log] = await Promise.all([
+      tq, rq, aq,
+      sb.from('mya_invoices').select('*, mya_clients(name,email,phone,contact_name,reminders_paused)').eq('status', 'envoyee').order('due_date'),
+      sb.from('mya_invoices').select('id', { count: 'exact', head: true }).eq('status', 'brouillon'),
+      sb.from('mya_payments').select('amount').gte('paid_on', monthStart),
+      sb.from('mya_reminders_log').select('id', { count: 'exact', head: true }).eq('automatic', true).eq('status', 'envoye').gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString()),
+    ]);
+    setTasks((t.data ?? []) as Task[]);
+    setReqs((r.data ?? []) as Request[]);
+    setAppts((a.data ?? []) as Appointment[]);
+    setInvoices((inv.data ?? []) as Invoice[]);
+    setDrafts(dr.count ?? 0);
+    setCashed((pay.data ?? []).reduce((s, p) => s + Number(p.amount), 0));
+    setAutoSent(log.count ?? 0);
+  }, [scope, me.user_id, today]);
 
-    sb.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      const { data: p } = await sb.from('profiles').select('full_name').eq('id', data.user.id).single();
-      const raw = p?.full_name || '';
-      // Ignore les noms issus de l'email (ex : "contact.ideaforma")
-      setName(raw && !raw.includes('@') && !raw.includes('.') ? raw.split(' ')[0] : '');
-    });
+  useEffect(() => { load(); }, [load, tick]);
 
-    (async () => {
-      const monthStart = startOfMonth().toISOString();
-      const todayStart = startOfDay().toISOString();
+  async function toggleTask(t: Task) {
+    setTasks((s) => s.filter((x) => x.id !== t.id));
+    await supabase().from('mya_tasks').update({ status: 'fait' }).eq('id', t.id);
+  }
 
-      const [{ data: monthSales }, { data: monthItems }, { data: variants }, { data: vendorStock }, { data: vendors }, { data: recentSales }] =
-        await Promise.all([
-          sb.from('sales').select('total,vendor_id,created_at').gte('created_at', monthStart).is('canceled_at', null),
-          sb.from('sale_items').select('qty,purchase_price,sales!inner(created_at,canceled_at)').gte('sales.created_at', monthStart).is('sales.canceled_at', null),
-          sb.from('product_variants').select('id,size,color,stock,products!inner(name,low_stock_threshold,purchase_price,archived)'),
-          sb.from('vendor_stock').select('vendor_id,qty,product_variants(products(purchase_price))'),
-          sb.from('vendors').select('id,name').eq('active', true),
-          sb.from('sales').select('id,number,total,payment_method,created_at,vendors(name)').is('canceled_at', null).order('created_at', { ascending: false }).limit(5),
-        ]);
-
-      // Reversements : total versé par revendeur + délai moyen de paiement
-      // (délai = temps entre la remise d'un lot et un paiement qui lui est rattaché)
-      const [{ data: allPays }, { data: allAllocs }] = await Promise.all([
-        sb.from('vendor_payments').select('vendor_id,amount,allocation_id,created_at'),
-        sb.from('allocations').select('id,created_at'),
-      ]);
-      const allocDate: Record<string, string> = {};
-      (allAllocs || []).forEach((a: any) => (allocDate[a.id] = a.created_at));
-      const verseByVendor: Record<string, number> = {};
-      const delaysByVendor: Record<string, number[]> = {};
-      (allPays || []).forEach((p: any) => {
-        verseByVendor[p.vendor_id] = (verseByVendor[p.vendor_id] || 0) + Number(p.amount);
-        if (p.allocation_id && allocDate[p.allocation_id]) {
-          const days = (new Date(p.created_at).getTime() - new Date(allocDate[p.allocation_id]).getTime()) / 86400000;
-          if (days >= 0) (delaysByVendor[p.vendor_id] = delaysByVendor[p.vendor_id] || []).push(days);
-        }
-      });
-      const delaiByVendor: Record<string, number> = {};
-      Object.entries(delaysByVendor).forEach(([k, arr]) => {
-        delaiByVendor[k] = Math.round(arr.reduce((s, d) => s + d, 0) / arr.length);
-      });
-
-      const caMois = (monthSales || []).reduce((s, x) => s + Number(x.total), 0);
-      const caToday = (monthSales || []).filter((x) => x.created_at >= todayStart).reduce((s, x) => s + Number(x.total), 0);
-      // Bénéfice du mois = CA encaissable (remises déduites) − coût d'achat des articles vendus
-      const coutVendu = (monthItems || []).reduce((s: number, it: any) => s + it.qty * Number(it.purchase_price || 0), 0);
-      const benefMois = caMois - coutVendu;
-
-      const active = (variants || []).filter((v: any) => !v.products.archived);
-      const depotPieces = active.reduce((s: number, v: any) => s + v.stock, 0);
-      const depotAchat = active.reduce((s: number, v: any) => s + v.stock * Number(v.products.purchase_price || 0), 0);
-      const vendPieces = (vendorStock || []).reduce((s: number, r: any) => s + r.qty, 0);
-      const vendAchat = (vendorStock || []).reduce(
-        (s: number, r: any) => s + r.qty * Number(r.product_variants?.products?.purchase_price || 0), 0);
-      // Vitesse d'écoulement sur 30 jours : ventes + lots remis aux revendeurs
-      const d30 = daysAgo(30).toISOString();
-      const [{ data: sold30 }, { data: alloc30 }] = await Promise.all([
-        sb
-          .from('sale_items')
-          .select('variant_id,qty,sales!inner(created_at,canceled_at)')
-          .gte('sales.created_at', d30)
-          .is('sales.canceled_at', null),
-        sb
-          .from('allocation_items')
-          .select('variant_id,qty,allocations!inner(created_at,direction)')
-          .gte('allocations.created_at', d30)
-          .eq('allocations.direction', 'sortie'),
-      ]);
-      const outflow: Record<string, number> = {};
-      (sold30 || []).forEach((it: any) => it.variant_id && (outflow[it.variant_id] = (outflow[it.variant_id] || 0) + it.qty));
-      (alloc30 || []).forEach((it: any) => (outflow[it.variant_id] = (outflow[it.variant_id] || 0) + it.qty));
-      const movers: FastMover[] = active
-        .filter((v: any) => outflow[v.id] > 0)
-        .map((v: any) => {
-          const qty30 = outflow[v.id];
-          return {
-            id: v.id,
-            name: v.products.name,
-            label: variantLabel(v),
-            stock: v.stock,
-            qty30,
-            daysLeft: qty30 > 0 ? Math.round(v.stock / (qty30 / 30)) : null,
-          };
-        })
-        .sort((a: FastMover, b: FastMover) => b.qty30 - a.qty30)
-        .slice(0, 6);
-
-      // Ventes du mois par revendeur
-      const byVendor: Record<string, { ca: number; nb: number }> = {};
-      (monthSales || []).forEach((s: any) => {
-        const k = s.vendor_id || 'depot';
-        byVendor[k] = byVendor[k] || { ca: 0, nb: 0 };
-        byVendor[k].ca += Number(s.total);
-        byVendor[k].nb += 1;
-      });
-      const piecesByVendor: Record<string, number> = {};
-      const achatByVendor: Record<string, number> = {};
-      (vendorStock || []).forEach((r: any) => {
-        piecesByVendor[r.vendor_id] = (piecesByVendor[r.vendor_id] || 0) + r.qty;
-        achatByVendor[r.vendor_id] =
-          (achatByVendor[r.vendor_id] || 0) + r.qty * Number(r.product_variants?.products?.purchase_price || 0);
-      });
-
-      const lines: VendorLine[] = [
-        { id: 'depot', name: 'Dépôt (moi)', ca: byVendor['depot']?.ca || 0, nb: byVendor['depot']?.nb || 0, pieces: depotPieces, achat: depotAchat, verse: 0, delai: null },
-        ...((vendors as any) || []).map((v: any) => ({
-          id: v.id,
-          name: v.name,
-          ca: byVendor[v.id]?.ca || 0,
-          nb: byVendor[v.id]?.nb || 0,
-          pieces: piecesByVendor[v.id] || 0,
-          achat: achatByVendor[v.id] || 0,
-          verse: verseByVendor[v.id] || 0,
-          delai: delaiByVendor[v.id] ?? null,
-        })),
-      ].sort((a, b) => b.ca - a.ca);
-
-      setKpi({ caMois, nbMois: (monthSales || []).length, caToday, benefMois, depotPieces, depotAchat, vendPieces, vendAchat });
-
-      // Lots dont l'échéance de reversement est dépassée
-      const today = new Date().toISOString().slice(0, 10);
-      const [{ data: lateAllocs }, { data: lotPays }] = await Promise.all([
-        sb
-          .from('allocations')
-          .select('id,vendor_id,created_at,due_type,due_amount,due_date,vendors(name)')
-          .eq('direction', 'sortie')
-          .not('due_date', 'is', null)
-          .lt('due_date', today),
-        sb.from('vendor_payments').select('allocation_id,amount').not('allocation_id', 'is', null),
-      ]);
-      const paidByLot: Record<string, number> = {};
-      (lotPays || []).forEach((p: any) => (paidByLot[p.allocation_id] = (paidByLot[p.allocation_id] || 0) + Number(p.amount)));
-      setOverdue(
-        ((lateAllocs as any[]) || [])
-          .map((a): OverdueLot => {
-            const du = a.due_type === 'ventes' || a.due_amount == null ? null : Number(a.due_amount);
-            const reste = du != null ? Math.max(0, du - (paidByLot[a.id] || 0)) : null;
-            return {
-              id: a.id,
-              vendorId: a.vendor_id,
-              vendorName: a.vendors?.name || 'Revendeur',
-              date: a.created_at,
-              dueDate: a.due_date,
-              reste,
-              days: Math.max(1, Math.floor((Date.now() - new Date(a.due_date).getTime()) / 86400000)),
-            };
-          })
-          .filter((l) => l.reste == null || l.reste > 0)
-          .sort((a, b) => b.days - a.days)
-          .slice(0, 6)
-      );
-      setVendorLines(lines);
-      setFastMovers(movers);
-      setRecent((recentSales as any) || []);
-    })();
-  }, []);
-
-  const maxCa = Math.max(...vendorLines.map((l) => l.ca), 1);
+  const toCollect = invoices.reduce((s, i) => s + invoiceBalance(i), 0);
+  const late = invoices.filter((i) => i.due_date < today);
+  const lateSum = late.reduce((s, i) => s + invoiceBalance(i), 0);
+  const toCall = late.filter((i) => daysBetween(i.due_date, today) >= 30).slice(0, 5);
+  const lateTasks = tasks.filter((t) => t.due_date && t.due_date < today);
+  const todayTasks = tasks.filter((t) => !t.due_date || t.due_date >= today);
+  const todayAppts = appts.filter((a) => todayISO(new Date(a.starts_at)) === today);
+  const tomorrowAppts = appts.filter((a) => !todayAppts.includes(a));
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
 
   return (
-    <div className="space-y-5">
-      <header className="pt-2">
-        <p className="text-ink/60 text-sm">
-          {new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}
-        </p>
-        <h1
-          className="text-2xl font-bold text-ink tracking-tight select-none"
-          onClick={() => {
-            const now = Date.now();
-            eggTaps.current = [...eggTaps.current.filter((t) => now - t < 3000), now];
-            if (eggTaps.current.length >= 7) {
-              eggTaps.current = [];
-              setEgg(true);
-            }
-          }}
-        >
-          Bonjour{name ? ` ${name}` : ''}
-        </h1>
-      </header>
-
-      {egg && <DeliveryRun onClose={() => setEgg(false)} />}
-
-      {/* My-bot commente l'état du jour */}
-      <MyBot
-        pose={
-          overdue.length > 0
-            ? 'panique'
-            : fastMovers.some((m) => m.daysLeft != null && m.daysLeft <= 7)
-              ? 'restock'
-              : 'happy'
-        }
-        message={
-          overdue.length > 0
-            ? `${overdue.length} reversement${overdue.length > 1 ? 's' : ''} en retard — on va les récupérer !`
-            : fastMovers.some((m) => m.daysLeft != null && m.daysLeft <= 7)
-              ? `Ça part vite ! ${fastMovers.filter((m) => m.daysLeft != null && m.daysLeft <= 7).length} article${fastMovers.filter((m) => m.daysLeft != null && m.daysLeft <= 7).length > 1 ? 's' : ''} épuisé${fastMovers.filter((m) => m.daysLeft != null && m.daysLeft <= 7).length > 1 ? 's' : ''} d'ici ~7 jours à ce rythme — réassort conseillé pour continuer à vendre.`
-              : 'Tout roule ! Reversements à jour et écoulement régulier.'
-        }
-      />
-
-      {/* CA & bénéfice du mois — temps réel */}
-      <div className="glass-strong p-4">
-        <div className="flex items-baseline justify-between">
-          <p className="text-ink/60 text-xs">Chiffre d&apos;affaires du mois <span className="text-ink/40">(dépôt + revendeurs)</span></p>
-          <p className="text-ink/45 text-xs">dont aujourd&apos;hui : {fmt(kpi.caToday)}</p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-ink-mute capitalize">{frDate(today, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1 className="h1">{hello} {me.full_name.split(' ')[0]}</h1>
+          <p className="text-sm text-ink-soft mt-1">{summary(todayAppts.length, lateTasks.length + todayTasks.length, reqs.length)}</p>
         </div>
-        <p className="text-3xl font-bold text-crystal-700 mt-1">{fmt(kpi.caMois)}</p>
-        <div className="flex items-baseline justify-between mt-2 pt-2 border-t border-ink/10">
-          <p className="text-ink/60 text-xs">Bénéfice du mois <span className="text-ink/40">(CA − coût d&apos;achat des articles vendus)</span></p>
-          <p className={`text-xl font-bold ${kpi.benefMois >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(kpi.benefMois)}</p>
-        </div>
-        <p className="text-ink/55 text-xs mt-1">{kpi.nbMois} vente{kpi.nbMois > 1 ? 's' : ''} enregistrée{kpi.nbMois > 1 ? 's' : ''} ce mois-ci</p>
-      </div>
-
-      {/* Stock en pièces et valeur d'achat */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="glass p-3">
-          <p className="text-ink/55 text-[11px]">Stock au dépôt</p>
-          <p className="text-lg font-bold text-ink mt-0.5">
-            {fmtQty(kpi.depotPieces)} <span className="text-xs font-normal text-ink/50">pièces</span>
-          </p>
-          <p className="text-crystal-700 text-sm font-semibold">{fmt(kpi.depotAchat)}</p>
-          <p className="text-ink/45 text-[10px]">valeur d&apos;achat du stock dépôt</p>
-        </div>
-        <div className="glass p-3">
-          <p className="text-ink/55 text-[11px]">Chez les revendeurs <span className="text-ink/40">(tous confondus)</span></p>
-          <p className="text-lg font-bold text-ink mt-0.5">
-            {fmtQty(kpi.vendPieces)} <span className="text-xs font-normal text-ink/50">pièces</span>
-          </p>
-          <p className="text-crystal-700 text-sm font-semibold">{fmt(kpi.vendAchat)}</p>
-          <p className="text-ink/45 text-[10px]">valeur d&apos;achat du stock confié</p>
-        </div>
-      </div>
-
-      {/* Actions rapides — flux grossiste d'abord, détail en second */}
-      <div className="grid grid-cols-2 gap-3">
-        <Link href="/vendeurs" className="btn-accent py-4">
-          <IconUsers className="w-5 h-5" /> Remettre un lot
-        </Link>
-        <Link href="/produits/nouveau" className="btn-glass py-4">
-          <IconPlus className="w-5 h-5" /> Produit
-        </Link>
-      </div>
-      <Link href="/caisse" className="block text-center text-ink/50 text-xs -mt-2">
-        <IconCash className="w-3.5 h-3.5 inline mr-1" />Vente au détail (occasionnelle) →
-      </Link>
-
-      {/* Ventes du mois par vendeur */}
-      <section className="glass p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <IconUsers className="w-5 h-5 text-crystal-600" />
-          <h2 className="section-title">Par revendeur — stock détenu et CA du mois</h2>
-        </div>
-        {vendorLines.length === 0 ? (
-          <p className="text-ink/55 text-sm">Créez vos revendeurs pour suivre leurs ventes.</p>
-        ) : (
-          <ul className="space-y-3">
-            {vendorLines.map((l) => (
-              <li key={l.id}>
-                <Link href={l.id === 'depot' ? '/produits' : `/vendeurs/${l.id}`} className="block">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-ink font-medium">{l.name}</span>
-                    <span className="font-semibold text-ink">{fmt(l.ca)} <span className="text-ink/40 text-xs font-normal">CA du mois</span></span>
-                  </div>
-                  <p className="text-ink/50 text-xs">
-                    {fmtQty(l.pieces)} pièce{l.pieces > 1 ? 's' : ''} en stock · valeur d&apos;achat {fmt(l.achat)} · {l.nb} vente{l.nb > 1 ? 's' : ''} ce mois
-                  </p>
-                  {l.id !== 'depot' && (
-                    <p className="text-xs mb-1">
-                      <span className="text-emerald-600 font-medium">déjà versé {fmt(l.verse)}</span>
-                      <span className="text-ink/50">
-                        {l.delai != null ? ` · paie en ~${l.delai} j en moyenne` : ' · délai de paiement : pas encore mesuré'}
-                      </span>
-                    </p>
-                  )}
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(13,43,78,0.08)' }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${(l.ca / maxCa) * 100}%`, background: 'linear-gradient(90deg,#60b8fa,#257ceb)' }}
-                    />
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Retards de reversement */}
-      {overdue.length > 0 && (
-        <section className="glass-strong p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <IconAlert className="w-5 h-5 text-rose-500" />
-            <h2 className="section-title !text-rose-700/80">Reversements en retard</h2>
+        {members.length > 1 && (
+          <div className="flex gap-1 bg-paper-deep p-1 rounded-xl">
+            <button onClick={() => setScope('moi')} className={`tab ${scope === 'moi' ? 'tab-on' : ''}`}>Pour moi</button>
+            <button onClick={() => setScope('tous')} className={`tab ${scope === 'tous' ? 'tab-on' : ''}`}>Tout le cabinet</button>
           </div>
-          <ul className="space-y-2">
-            {overdue.map((l) => (
-              <li key={l.id}>
-                <Link href={`/lots/${l.id}`} className="flex items-center justify-between text-sm">
-                  <span className="text-ink min-w-0 truncate">
-                    <span className="font-medium">{l.vendorName}</span>
-                    <span className="text-ink/45"> · lot du {fmtDate(l.date).split(' ').slice(0, 3).join(' ')}</span>
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    <span className="chip chip-danger !text-[10px]">{l.days} j de retard</span>
-                    <span className="font-semibold text-rose-600">{l.reste != null ? fmt(l.reste) : 'au réel'}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Vitesse de vente : ce qui s'écoule le plus vite (ventes + lots, 30 j) */}
-      {fastMovers.length > 0 && (
-        <section className="glass p-4">
-          <h2 className="section-title mb-1">Vitesse de vente — top écoulement</h2>
-          <p className="text-ink/45 text-xs mb-3">
-            Pièces écoulées sur 30 jours (ventes + lots remis) et durée estimée du stock restant à ce rythme.
-          </p>
-          <ul className="space-y-2">
-            {fastMovers.map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-sm gap-2">
-                <span className="text-ink min-w-0 truncate">
-                  {m.name} <span className="text-ink/55">· {m.label}</span>
-                  <span className="text-ink/45"> — {fmtQty(m.qty30)} pcs/30 j</span>
-                </span>
-                <span className={`chip shrink-0 ${m.stock === 0 ? 'chip-danger' : m.daysLeft != null && m.daysLeft <= 7 ? 'chip-warn' : 'chip-ok'}`}>
-                  {m.stock === 0 ? 'Épuisé ✓' : m.daysLeft != null ? `stock ≈ ${fmtQty(m.daysLeft)} j` : `${fmtQty(m.stock)} rest.`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Dernières ventes */}
-      <section className="glass p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="section-title">Dernières ventes</h2>
-          <Link href="/ventes" className="text-crystal-700 text-xs font-medium">Tout voir →</Link>
-        </div>
-        {recent.length === 0 ? (
-          <p className="text-ink/55 text-sm">Aucune vente pour l&apos;instant.</p>
-        ) : (
-          <ul className="space-y-2">
-            {recent.map((s) => (
-              <li key={s.id} className="flex items-center justify-between text-sm">
-                <span className="text-ink">
-                  #{s.number} <span className="text-ink/45">· {s.vendors?.name || 'Dépôt'} · {fmtDate(s.created_at)}</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className={`chip ${s.payment_method === 'credit' ? 'chip-warn' : 'chip-ok'}`}>
-                    {s.payment_method === 'especes' ? 'Espèces' : s.payment_method === 'carte' ? 'Carte' : 'Crédit'}
-                  </span>
-                  <span className="font-semibold text-ink">{fmt(Number(s.total))}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
         )}
-      </section>
+      </div>
+
+      {/* Argent */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi label="À encaisser" value={eur(toCollect)} sub={`${invoices.length} facture${invoices.length > 1 ? 's' : ''}`} href="/factures" />
+        <Kpi label="En retard" value={eur(lateSum)} sub={`${late.length} facture${late.length > 1 ? 's' : ''}`} tone={late.length ? 'clay' : undefined} href="/factures?f=retard" />
+        <Kpi label="Encaissé ce mois" value={eur(cashed)} tone="sage" href="/factures?f=payee" />
+        <Kpi label="Relances auto (7 j)" value={String(autoSent)} sub="envoyées pour vous" href="/relances" />
+      </div>
+
+      {drafts > 0 && (
+        <Link href="/factures?f=brouillon" className="flex items-center gap-3 card-pad bg-honey-50 border-honey-100 hover:shadow-pop transition">
+          <IconAlert className="w-5 h-5 text-honey-600" />
+          <span className="text-sm flex-1"><b>{drafts} facture{drafts > 1 ? 's' : ''} d'honoraires prête{drafts > 1 ? 's' : ''}</b> à vérifier et envoyer.</span>
+          <IconChevron className="w-4 h-4 text-ink-mute" />
+        </Link>
+      )}
+
+      <div className="grid lg:grid-cols-5 gap-5">
+        <div className="lg:col-span-3 space-y-5">
+          {/* Agenda du jour */}
+          <section className="card">
+            <Head title="Rendez-vous" href="/agenda" />
+            {todayAppts.length === 0 && tomorrowAppts.length === 0 ? (
+              <p className="px-4 pb-4 text-sm text-ink-mute">Aucun rendez-vous aujourd'hui ni demain.</p>
+            ) : (
+              <div>
+                {todayAppts.map((a) => <ApptRow key={a.id} a={a} onClick={() => setEdit({ t: 'appt', v: a })} />)}
+                {tomorrowAppts.length > 0 && <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wide text-ink-mute">Demain</p>}
+                {tomorrowAppts.map((a) => <ApptRow key={a.id} a={a} onClick={() => setEdit({ t: 'appt', v: a })} />)}
+              </div>
+            )}
+          </section>
+
+          {/* Tâches */}
+          <section className="card">
+            <Head title="À faire" href="/taches" />
+            {tasks.length === 0 ? (
+              <Empty title="Rien d'urgent" text="Aucune tâche en retard ni prévue aujourd'hui." />
+            ) : (
+              <div>
+                {lateTasks.length > 0 && <p className="px-4 pt-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-clay-600">En retard</p>}
+                {lateTasks.map((t) => <TaskRow key={t.id} t={t} onCheck={() => toggleTask(t)} onOpen={() => setEdit({ t: 'task', v: t })} />)}
+                {todayTasks.length > 0 && lateTasks.length > 0 && <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wide text-ink-mute">Aujourd'hui et demain</p>}
+                {todayTasks.map((t) => <TaskRow key={t.id} t={t} onCheck={() => toggleTask(t)} onOpen={() => setEdit({ t: 'task', v: t })} />)}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="lg:col-span-2 space-y-5">
+          {/* Demandes */}
+          <section className="card">
+            <Head title="Demandes en attente" href="/sollicitations" count={reqs.length} />
+            {reqs.length === 0 ? <p className="px-4 pb-4 text-sm text-ink-mute">Boîte vide. Bravo.</p> : reqs.slice(0, 6).map((r) => (
+              <button key={r.id} onClick={() => setEdit({ t: 'req', v: r })} className="row w-full text-left hover:bg-paper/60">
+                <PriorityDot p={r.priority} />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold truncate">{r.subject}</span>
+                  <span className="block text-xs text-ink-mute truncate">{r.mya_clients?.name ?? r.contact_name ?? '—'} · {LABELS.channel[r.channel]}</span>
+                </span>
+                {r.status === 'nouvelle' && <span className="chip-sage">Nouveau</span>}
+              </button>
+            ))}
+          </section>
+
+          {/* Clients à appeler */}
+          <section className="card">
+            <Head title="Impayés à appeler vous-même" href="/factures?f=retard" />
+            {toCall.length === 0 ? <p className="px-4 pb-4 text-sm text-ink-mute">Aucun retard de plus de 30 jours. Les relances automatiques s'occupent du reste.</p> : toCall.map((i) => (
+              <Link key={i.id} href={`/factures/${i.id}`} className="row hover:bg-paper/60">
+                <span className="w-8 h-8 rounded-full bg-clay-50 text-clay-700 flex items-center justify-center"><IconPhone className="w-4 h-4" /></span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold truncate">{i.mya_clients?.name}</span>
+                  <span className="block text-xs text-ink-mute">{i.number} · {daysBetween(i.due_date, today)} j de retard</span>
+                </span>
+                <span className="text-sm font-bold text-clay-700">{eur(invoiceBalance(i))}</span>
+              </Link>
+            ))}
+          </section>
+        </div>
+      </div>
+
+      <Modal open={edit?.t === 'task'} onClose={() => setEdit(null)} title="Tâche">{edit?.t === 'task' && <TaskForm initial={edit.v} onSaved={() => setEdit(null)} />}</Modal>
+      <Modal open={edit?.t === 'req'} onClose={() => setEdit(null)} title="Demande">{edit?.t === 'req' && <RequestForm initial={edit.v} onSaved={() => setEdit(null)} />}</Modal>
+      <Modal open={edit?.t === 'appt'} onClose={() => setEdit(null)} title="Rendez-vous">{edit?.t === 'appt' && <AppointmentForm initial={edit.v} onSaved={() => setEdit(null)} />}</Modal>
     </div>
+  );
+}
+
+function summary(appts: number, tasks: number, reqs: number) {
+  const parts = [];
+  parts.push(appts ? `${appts} rendez-vous` : 'aucun rendez-vous');
+  parts.push(`${tasks} tâche${tasks > 1 ? 's' : ''}`);
+  parts.push(`${reqs} demande${reqs > 1 ? 's' : ''} en attente`);
+  return `Au programme : ${parts.join(', ')}.`;
+}
+
+function Kpi({ label, value, sub, tone, href }: { label: string; value: string; sub?: string; tone?: 'clay' | 'sage'; href: string }) {
+  return (
+    <Link href={href} className="card-pad hover:shadow-pop transition">
+      <p className="text-xs font-semibold text-ink-mute">{label}</p>
+      <p className={`kpi-num mt-1 ${tone === 'clay' ? 'text-clay-600' : tone === 'sage' ? 'text-sage-700' : ''}`}>{value}</p>
+      {sub && <p className="text-xs text-ink-mute mt-0.5">{sub}</p>}
+    </Link>
+  );
+}
+
+function Head({ title, href, count }: { title: string; href: string; count?: number }) {
+  return (
+    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      <h2 className="h2">{title}{count ? <span className="ml-2 chip-gray">{count}</span> : null}</h2>
+      <Link href={href} className="text-xs font-semibold text-sage-700 hover:underline">Tout voir</Link>
+    </div>
+  );
+}
+
+function ApptRow({ a, onClick }: { a: Appointment; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="row w-full text-left hover:bg-paper/60">
+      <span className="w-14 text-sm font-bold text-sage-700">{frTime(a.starts_at)}</span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-semibold truncate">{a.title}</span>
+        <span className="block text-xs text-ink-mute truncate">{a.mya_clients?.name ?? '—'} · {LABELS.apptKind[a.kind]}</span>
+      </span>
+      <Avatar id={a.member_id} />
+    </button>
   );
 }

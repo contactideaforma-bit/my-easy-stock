@@ -1,34 +1,28 @@
 import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
-import CookieBanner from '@/components/CookieBanner';
+import { Plus_Jakarta_Sans, Fraunces } from 'next/font/google';
 import './globals.css';
 
-const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] });
+const sans = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'], variable: '--font-sans' });
+const display = Fraunces({ subsets: ['latin'], weight: ['500', '600'], variable: '--font-display' });
 
 export const metadata: Metadata = {
-  title: 'My Easy Stock',
-  description: 'Gestion de stock textile & chaussures — simple, mobile, indispensable.',
+  title: 'My Assistanad',
+  description: 'Votre assistante de cabinet : clients, demandes, rendez-vous, tâches et relances de paiement automatiques.',
   manifest: '/manifest.json',
-  icons: { icon: '/logo-192.png', apple: '/logo-512.png' },
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'My Easy Stock' },
+  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'My Assistanad' },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#e8f4fd',
+  themeColor: '#f6f5f1',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
-      <body className={jakarta.className}>
-        <div className="liquid-bg" />
-        {children}
-        <CookieBanner />
-      </body>
+    <html lang="fr" className={`${sans.variable} ${display.variable}`}>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }

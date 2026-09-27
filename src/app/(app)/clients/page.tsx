@@ -1,231 +1,118 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtDay } from '@/lib/utils';
-import { IconBack, IconPlus } from '@/components/Icons';
-import { customerLabel } from '@/lib/types';
-import type { Customer } from '@/lib/types';
+import { useCabinet } from '@/components/Cabinet';
+import { Avatar, Empty } from '@/components/Bits';
+import Modal from '@/components/Modal';
+import { ClientForm } from '@/components/Forms';
+import { IconPlus, IconSearch } from '@/components/Icons';
+import { eur, invoiceBalance, LABELS, todayISO } from '@/lib/utils';
+import type { Client } from '@/lib/types';
 
-type CustomerRow = Customer & { due: number };
-type Fiche = { name: string; first_name: string; phone: string; email: string; address: string };
-const EMPTY_FICHE: Fiche = { name: '', first_name: '', phone: '', email: '', address: '' };
-
-export default function ClientsPage() {
-  const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [fiche, setFiche] = useState<Fiche>(EMPTY_FICHE);
-  const [selected, setSelected] = useState<CustomerRow | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [editFiche, setEditFiche] = useState<Fiche>(EMPTY_FICHE);
-  const [payAmount, setPayAmount] = useState('');
-  const [history, setHistory] = useState<{ label: string; amount: number; date: string; type: 'vente' | 'reglement' }[]>([]);
+export default function Clients() {
+  const router = useRouter();
+  const { tick } = useCabinet();
+  const [rows, setRows] = useState<Client[]>([]);
+  const [due, setDue] = useState<Record<string, { due: number; late: number }>>({});
+  const [status, setStatus] = useState<'actif' | 'prospect' | 'archive' | 'impayes'>('actif');
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     const sb = supabase();
-    const [{ data: customers }, { data: sales }, { data: payments }] = await Promise.all([
-      sb.from('customers').select('*').order('name'),
-      sb.from('sales').select('customer_id,total,paid_amount').not('customer_id', 'is', null).is('canceled_at', null),
-      sb.from('customer_payments').select('customer_id,amount'),
+    const [c, inv] = await Promise.all([
+      sb.from('mya_clients').select('*').order('name'),
+      sb.from('mya_invoices').select('client_id,amount_ttc,paid_amount,due_date').eq('status', 'envoyee'),
     ]);
-    const dueMap: Record<string, number> = {};
-    (sales || []).forEach((s: any) => {
-      dueMap[s.customer_id] = (dueMap[s.customer_id] || 0) + Number(s.total) - Number(s.paid_amount);
-    });
-    (payments || []).forEach((p: any) => {
-      dueMap[p.customer_id] = (dueMap[p.customer_id] || 0) - Number(p.amount);
-    });
-    setRows(((customers as any) || []).map((c: Customer) => ({ ...c, due: Math.max(0, dueMap[c.id] || 0) })));
+    setRows((c.data ?? []) as Client[]);
+    const map: Record<string, { due: number; late: number }> = {};
+    const today = todayISO();
+    for (const i of inv.data ?? []) {
+      const m = (map[i.client_id] ??= { due: 0, late: 0 });
+      const b = invoiceBalance(i);
+      m.due += b;
+      if (i.due_date < today) m.late += b;
+    }
+    setDue(map);
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load, tick]);
 
-  async function openCustomer(c: CustomerRow) {
-    setSelected(c);
-    setEditing(false);
-    setPayAmount('');
-    const sb = supabase();
-    const [{ data: sales }, { data: pays }] = await Promise.all([
-      sb.from('sales').select('number,total,payment_method,created_at').eq('customer_id', c.id).is('canceled_at', null).order('created_at', { ascending: false }).limit(10),
-      sb.from('customer_payments').select('amount,created_at').eq('customer_id', c.id).order('created_at', { ascending: false }).limit(10),
-    ]);
-    const h = [
-      ...(sales || []).map((s: any) => ({
-        label: `Vente #${s.number}${s.payment_method === 'credit' ? ' (crédit)' : ''}`,
-        amount: Number(s.total),
-        date: s.created_at,
-        type: 'vente' as const,
-      })),
-      ...(pays || []).map((p: any) => ({ label: 'Règlement', amount: Number(p.amount), date: p.created_at, type: 'reglement' as const })),
-    ].sort((a, b) => b.date.localeCompare(a.date));
-    setHistory(h);
-  }
-
-  const ficheToRecord = (f: Fiche) => ({
-    name: f.name.trim(),
-    first_name: f.first_name.trim() || null,
-    phone: f.phone.trim() || null,
-    email: f.email.trim() || null,
-    address: f.address.trim() || null,
-  });
-
-  async function addCustomer() {
-    if (!fiche.name.trim()) return;
-    await supabase().from('customers').insert(ficheToRecord(fiche));
-    setFiche(EMPTY_FICHE);
-    setAdding(false);
-    load();
-  }
-
-  function startEdit(c: CustomerRow) {
-    setEditFiche({
-      name: c.name || '',
-      first_name: c.first_name || '',
-      phone: c.phone || '',
-      email: c.email || '',
-      address: c.address || '',
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return rows.filter((c) => {
+      if (status === 'impayes' ? !(due[c.id]?.late > 0) : c.status !== status) return false;
+      return !s || `${c.name} ${c.contact_name ?? ''} ${c.siren ?? ''} ${c.email ?? ''}`.toLowerCase().includes(s);
     });
-    setEditing(true);
-  }
+  }, [rows, q, status, due]);
 
-  async function saveEdit() {
-    if (!selected || !editFiche.name.trim()) return;
-    await supabase().from('customers').update(ficheToRecord(editFiche)).eq('id', selected.id);
-    setEditing(false);
-    setSelected(null);
-    load();
-  }
-
-  async function recordPayment() {
-    if (!selected || !Number(payAmount)) return;
-    await supabase().from('customer_payments').insert({ customer_id: selected.id, amount: Number(payAmount) });
-    setSelected(null);
-    load();
-  }
-
-  const totalDue = rows.reduce((s, r) => s + r.due, 0);
+  const nbLate = rows.filter((c) => due[c.id]?.late > 0).length;
 
   return (
-    <div className="space-y-4 pb-8">
-      <header className="flex items-center gap-3 pt-2">
-        <Link href="/plus" className="btn-glass !p-2"><IconBack /></Link>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-ink">Clients</h1>
-          {totalDue > 0 && <p className="text-xs text-orange-700/90">Crédit en cours : {fmt(totalDue)}</p>}
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="h1">Clients</h1>
+          <p className="text-sm text-ink-mute">{rows.filter((c) => c.status === 'actif').length} dossiers actifs</p>
         </div>
-        <button className="btn-primary !py-2 !px-3 text-sm" onClick={() => setAdding(!adding)}>
-          <IconPlus className="w-4 h-4" /> Client
-        </button>
-      </header>
+        <button className="btn-primary" onClick={() => setOpen(true)}><IconPlus className="w-4 h-4" />Nouveau client</button>
+      </div>
 
-      {adding && (
-        <div className="glass p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <input className="input" placeholder="Prénom" value={fiche.first_name} onChange={(e) => setFiche({ ...fiche, first_name: e.target.value })} />
-            <input className="input" placeholder="Nom *" value={fiche.name} onChange={(e) => setFiche({ ...fiche, name: e.target.value })} />
-            <input className="input" placeholder="Téléphone" value={fiche.phone} onChange={(e) => setFiche({ ...fiche, phone: e.target.value })} />
-            <input className="input" type="email" placeholder="Email" value={fiche.email} onChange={(e) => setFiche({ ...fiche, email: e.target.value })} />
-          </div>
-          <input className="input" placeholder="Adresse" value={fiche.address} onChange={(e) => setFiche({ ...fiche, address: e.target.value })} />
-          <button className="btn-primary w-full" onClick={addCustomer}>Créer la fiche client</button>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 bg-paper-deep p-1 rounded-xl overflow-x-auto">
+          <button onClick={() => setStatus('actif')} className={`tab ${status === 'actif' ? 'tab-on' : ''}`}>Actifs</button>
+          <button onClick={() => setStatus('impayes')} className={`tab ${status === 'impayes' ? 'tab-on' : ''}`}>Impayés{nbLate ? ` · ${nbLate}` : ''}</button>
+          <button onClick={() => setStatus('prospect')} className={`tab ${status === 'prospect' ? 'tab-on' : ''}`}>Prospects</button>
+          <button onClick={() => setStatus('archive')} className={`tab ${status === 'archive' ? 'tab-on' : ''}`}>Archivés</button>
         </div>
-      )}
-
-      {rows.length === 0 ? (
-        <div className="glass p-8 text-center text-ink/55">Aucun client enregistré.</div>
-      ) : (
-        <div className="glass p-2">
-          {rows.map((c) => (
-            <button key={c.id} className="w-full flex items-center justify-between p-3 text-left" onClick={() => openCustomer(c)}>
-              <div>
-                <p className="text-ink font-medium text-sm">{customerLabel(c)}</p>
-                {(c.phone || c.email) && <p className="text-ink/45 text-xs">{[c.phone, c.email].filter(Boolean).join(' · ')}</p>}
-              </div>
-              {c.due > 0 ? <span className="chip chip-warn">doit {fmt(c.due)}</span> : <span className="chip chip-ok">à jour</span>}
-            </button>
-          ))}
+        <div className="relative ml-auto w-full sm:w-72">
+          <IconSearch className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute" />
+          <input className="input pl-9" placeholder="Nom, SIREN, contact…" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-      )}
+      </div>
 
-      {/* Fiche client */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={() => setSelected(null)}>
-          <div className="glass-strong w-full max-w-lg mx-auto rounded-b-none p-6 pb-10 space-y-4 max-h-[85dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-lg font-bold text-ink">{customerLabel(selected)}</h3>
-                <p className={selected.due > 0 ? 'text-orange-700' : 'text-emerald-700'}>
-                  {selected.due > 0 ? `Crédit en cours : ${fmt(selected.due)}` : 'Compte à jour'}
-                </p>
-              </div>
-              {!editing && (
-                <button className="btn-glass !py-1.5 !px-3 text-xs shrink-0" onClick={() => startEdit(selected)}>
-                  Modifier la fiche
-                </button>
-              )}
-            </div>
+      <div className="card overflow-hidden">
+        {list.length === 0 ? <Empty title="Aucun client ici" action={status === 'actif' && !q ? <button className="btn-primary" onClick={() => setOpen(true)}>Créer le premier dossier</button> : undefined} /> : (
+          <table className="w-full text-sm">
+            <thead className="hidden md:table-header-group text-xs text-ink-mute text-left">
+              <tr className="border-b border-paper-line">
+                <th className="px-4 py-2.5 font-semibold">Client</th>
+                <th className="px-4 py-2.5 font-semibold">Honoraires</th>
+                <th className="px-4 py-2.5 font-semibold">TVA</th>
+                <th className="px-4 py-2.5 font-semibold text-right">Reste dû</th>
+                <th className="px-4 py-2.5 font-semibold w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((c) => (
+                <tr key={c.id} onClick={() => router.push(`/clients/${c.id}`)} className="border-b border-paper-line last:border-0 hover:bg-paper/60 cursor-pointer">
+                  <td className="px-4 py-3">
+                    <Link href={`/clients/${c.id}`} className="font-semibold">{c.name}</Link>
+                    <span className="block text-xs text-ink-mute">{[c.legal_form, c.contact_name].filter(Boolean).join(' · ') || LABELS.kind[c.kind]}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-ink-soft">{c.fee_amount ? `${eur(c.fee_amount)} HT · ${LABELS.freq[c.fee_frequency].toLowerCase()}` : '—'}</td>
+                  <td className="px-4 py-3 hidden md:table-cell text-ink-soft capitalize">{c.vat_regime ?? '—'}</td>
+                  <td className="px-4 py-3 text-right">
+                    {due[c.id]?.due ? (
+                      <span className={due[c.id].late > 0 ? 'font-bold text-clay-600' : 'font-semibold'}>{eur(due[c.id].due)}</span>
+                    ) : <span className="text-ink-mute">—</span>}
+                    {due[c.id]?.late > 0 && <span className="block text-[11px] text-clay-600">dont {eur(due[c.id].late)} en retard</span>}
+                    {c.reminders_paused && <span className="block text-[11px] text-honey-600">relances en pause</span>}
+                  </td>
+                  <td className="px-4 py-3"><Avatar id={c.owner_member} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-            {editing ? (
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <input className="input !py-2" placeholder="Prénom" value={editFiche.first_name} onChange={(e) => setEditFiche({ ...editFiche, first_name: e.target.value })} />
-                  <input className="input !py-2" placeholder="Nom *" value={editFiche.name} onChange={(e) => setEditFiche({ ...editFiche, name: e.target.value })} />
-                  <input className="input !py-2" placeholder="Téléphone" value={editFiche.phone} onChange={(e) => setEditFiche({ ...editFiche, phone: e.target.value })} />
-                  <input className="input !py-2" type="email" placeholder="Email" value={editFiche.email} onChange={(e) => setEditFiche({ ...editFiche, email: e.target.value })} />
-                </div>
-                <input className="input !py-2" placeholder="Adresse" value={editFiche.address} onChange={(e) => setEditFiche({ ...editFiche, address: e.target.value })} />
-                <div className="grid grid-cols-2 gap-2">
-                  <button className="btn-glass !py-2" onClick={() => setEditing(false)}>Annuler</button>
-                  <button className="btn-primary !py-2" onClick={saveEdit}>Enregistrer</button>
-                </div>
-              </div>
-            ) : (
-              (selected.phone || selected.email || selected.address) && (
-                <p className="text-ink/55 text-sm">
-                  {[selected.phone, selected.email, selected.address].filter(Boolean).join(' · ')}
-                </p>
-              )
-            )}
-
-            {selected.due > 0 && (
-              <div className="flex gap-2">
-                <input
-                  className="input flex-1"
-                  type="number"
-                  inputMode="decimal"
-                  placeholder={`Règlement (max ${fmt(selected.due)})`}
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                />
-                <button className="btn-primary" onClick={recordPayment}>Encaisser</button>
-              </div>
-            )}
-
-            <div>
-              <h4 className="section-title mb-2">Historique</h4>
-              {history.length === 0 ? (
-                <p className="text-ink/55 text-sm">Aucune opération.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {history.map((h, i) => (
-                    <li key={i} className="flex items-center justify-between text-sm">
-                      <span className="text-ink">
-                        {h.label} <span className="text-ink/45">· {fmtDay(h.date)}</span>
-                      </span>
-                      <span className={h.type === 'reglement' ? 'text-emerald-600' : 'text-ink'}>
-                        {h.type === 'reglement' ? '−' : ''}{fmt(h.amount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal open={open} onClose={() => setOpen(false)} title="Nouveau client" wide>
+        {open && <ClientForm onSaved={(id) => { setOpen(false); router.push(`/clients/${id}`); }} />}
+      </Modal>
     </div>
   );
 }
