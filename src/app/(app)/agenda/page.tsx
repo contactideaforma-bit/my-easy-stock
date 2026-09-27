@@ -68,9 +68,9 @@ export default function Agenda() {
           const weekend = new Date(d + 'T12:00:00Z').getUTCDay() % 6 === 0;
           if (weekend && items.length === 0) return <div key={d} className="hidden lg:block" />;
           return (
-            <section key={d} className={`card min-h-[120px] ${isToday ? 'ring-2 ring-sage-200' : ''}`}>
+            <section key={d} className={`card min-h-[120px] ${isToday ? 'ring-2 ring-rose-200' : ''}`}>
               <button onClick={() => setOpen({ starts_at: new Date(d + 'T09:00:00').toISOString() } as Appointment)} className="w-full text-left px-3 pt-3 pb-2 border-b border-paper-line group">
-                <span className={`block text-[11px] font-bold uppercase tracking-wide ${isToday ? 'text-sage-700' : 'text-ink-mute'}`}>{frDate(d, { weekday: 'long' })}</span>
+                <span className={`block text-[11px] font-bold uppercase tracking-wide ${isToday ? 'text-rose-700' : 'text-ink-mute'}`}>{frDate(d, { weekday: 'long' })}</span>
                 <span className="flex items-center justify-between"><span className="font-display text-lg">{frDate(d, { day: 'numeric', month: 'short' })}</span>
                   <IconPlus className="w-4 h-4 text-ink-mute opacity-0 group-hover:opacity-100" /></span>
               </button>
@@ -80,16 +80,16 @@ export default function Agenda() {
                   const wa = whatsappLink(a.mya_clients?.phone, `Bonjour, je vous confirme notre rendez-vous du ${frDate(a.starts_at, { weekday: 'long', day: 'numeric', month: 'long' })} à ${frTime(a.starts_at)}. À bientôt, ${cabinet.name}`);
                   return (
                     <div key={a.id} className={`rounded-xl p-2.5 text-left border ${a.status === 'annule' ? 'opacity-50 line-through' : ''}`}
-                      style={{ borderColor: '#e6e2d9', borderLeft: `4px solid ${members.find((m) => m.user_id === a.member_id)?.color ?? '#2f7d6d'}` }}>
+                      style={{ borderColor: '#f1e2e8', borderLeft: `4px solid ${members.find((m) => m.user_id === a.member_id)?.color ?? '#cc3a73'}` }}>
                       <button onClick={() => setOpen(a)} className="w-full text-left">
-                        <span className="block text-xs font-bold text-sage-700">{frTime(a.starts_at)}{a.ends_at ? ` – ${frTime(a.ends_at)}` : ''}</span>
+                        <span className="block text-xs font-bold text-rose-700">{frTime(a.starts_at)}{a.ends_at ? ` – ${frTime(a.ends_at)}` : ''}</span>
                         <span className="block text-sm font-semibold leading-snug">{a.title}</span>
                         <span className="block text-xs text-ink-mute">{a.mya_clients?.name ?? '—'} · {LABELS.apptKind[a.kind]}</span>
                       </button>
                       <div className="flex items-center gap-2 mt-1.5">
                         <Avatar id={a.member_id} />
                         {a.reminded_at && <span className="chip-sage">Rappel envoyé</span>}
-                        {wa && <a href={wa} target="_blank" rel="noreferrer" title="Confirmer par WhatsApp" className="ml-auto p-1 rounded-md text-sage-700 hover:bg-sage-50"><IconMessage className="w-4 h-4" /></a>}
+                        {wa && <a href={wa} target="_blank" rel="noreferrer" title="Confirmer par WhatsApp" className="ml-auto p-1 rounded-md text-rose-700 hover:bg-rose-50"><IconMessage className="w-4 h-4" /></a>}
                       </div>
                     </div>
                   );

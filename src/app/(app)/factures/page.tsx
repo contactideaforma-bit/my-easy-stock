@@ -8,6 +8,7 @@ import { useCabinet } from '@/components/Cabinet';
 import { Empty } from '@/components/Bits';
 import { InvoiceBadge } from '@/components/InvoiceBadge';
 import { IconPlus, IconSearch } from '@/components/Icons';
+import { PayerDot, usePayers } from '@/components/Payer';
 import { nextRuleDate } from '@/lib/schedule';
 import { eur, frDate, invoiceBalance, relDay, todayISO } from '@/lib/utils';
 import type { Invoice, ReminderRule } from '@/lib/types';
@@ -32,6 +33,7 @@ function Factures() {
   const [rows, setRows] = useState<Invoice[]>([]);
   const [rules, setRules] = useState<ReminderRule[]>([]);
   const [q, setQ] = useState('');
+  const payers = usePayers(tick);
   const today = todayISO();
 
   const load = useCallback(async () => {
@@ -94,7 +96,7 @@ function Factures() {
                   return (
                     <tr key={i.id} onClick={() => router.push(`/factures/${i.id}`)} className="border-b border-paper-line last:border-0 hover:bg-paper/60 cursor-pointer">
                       <td className="px-4 py-3">
-                        <span className="font-semibold">{i.mya_clients?.name}</span>
+                        <span className="flex items-center gap-2"><PayerDot p={payers[i.client_id]} /><span className="font-semibold">{i.mya_clients?.name}</span></span>
                         <span className="block text-xs text-ink-mute">{i.number ?? 'Brouillon'} · {i.label}</span>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">

@@ -9,7 +9,7 @@ import { eur, frDate, frTime, LABELS, todayISO } from '@/lib/utils';
 import { dueRule } from '@/lib/schedule';
 import type { Invoice, ReminderLog, ReminderRule } from '@/lib/types';
 
-const VARS = ['{contact}', '{client}', '{numero}', '{montant}', '{reste}', '{echeance}', '{jours_retard}', '{lien}', '{iban}', '{cabinet}', '{tel_cabinet}'];
+const VARS = ['{contact}', '{client}', '{numero}', '{montant}', '{reste}', '{echeance}', '{jours_retard}', '{lien}', '{lien_paiement}', '{iban}', '{cabinet}', '{tel_cabinet}'];
 
 export default function Relances() {
   const { me, cabinet, tick } = useCabinet();
@@ -125,7 +125,7 @@ function RuleCard({ rule, onChange, onSave, disabled }: { rule: ReminderRule; on
   return (
     <fieldset disabled={disabled} className={`card-pad space-y-3 ${rule.active ? '' : 'opacity-60'}`}>
       <div className="flex flex-wrap items-center gap-3">
-        <span className="w-8 h-8 rounded-full bg-sage-600 text-white font-bold flex items-center justify-center">{rule.step}</span>
+        <span className="w-8 h-8 rounded-full bg-rose-600 text-white font-bold flex items-center justify-center">{rule.step}</span>
         <div className="flex items-center gap-2 text-sm">
           <input type="number" className="input w-20" value={rule.offset_days} onChange={(e) => set('offset_days', Number(e.target.value))} />
           <span>jours {rule.offset_days < 0 ? 'avant' : 'après'} l'échéance</span>
@@ -138,7 +138,7 @@ function RuleCard({ rule, onChange, onSave, disabled }: { rule: ReminderRule; on
             <button type="button" key={c} onClick={() => toggleCh(c)} className={rule.channels.includes(c) ? 'chip-ink py-1 px-3' : 'chip-gray py-1 px-3'}>{c === 'email' ? 'Email' : 'SMS'}</button>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-sm ml-auto"><input type="checkbox" checked={rule.active} onChange={(e) => set('active', e.target.checked)} className="accent-sage-600" />Active</label>
+        <label className="flex items-center gap-2 text-sm ml-auto"><input type="checkbox" checked={rule.active} onChange={(e) => set('active', e.target.checked)} className="accent-rose-600" />Active</label>
       </div>
       <Field label="Objet de l'email"><input className="input" value={rule.subject} onChange={(e) => set('subject', e.target.value)} /></Field>
       <Field label="Message"><textarea className="input min-h-[160px]" value={rule.body} onChange={(e) => set('body', e.target.value)} /></Field>

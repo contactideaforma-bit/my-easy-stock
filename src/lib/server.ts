@@ -69,7 +69,7 @@ function esc(s: string) {
 
 export function textToHtml(text: string) {
   const body = esc(text)
-    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color:#2f7d6d">$1</a>')
+    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color:#cc3a73">$1</a>')
     .replace(/\n/g, '<br>');
-  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#1c2433;max-width:560px">${body}</div>`;
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#3a2233;max-width:560px">${body}</div>`;
 }

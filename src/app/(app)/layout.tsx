@@ -10,7 +10,7 @@ import Modal from '@/components/Modal';
 import { AppointmentForm, RequestForm, TaskForm } from '@/components/Forms';
 import {
   IconBell, IconCalendar, IconEuro, IconInbox, IconList, IconLogout, IconMenu, IconPlus,
-  IconSettings, IconSun, IconUsers, IconX,
+  IconLandmark, IconPen, IconSettings, IconSun, IconUsers, IconX,
 } from '@/components/Icons';
 
 type NavItem = { href: string; label: string; icon: (p: { className?: string }) => JSX.Element };
@@ -20,9 +20,11 @@ const NAV: NavItem[] = [
   { href: '/sollicitations', label: 'Demandes', icon: IconInbox },
   { href: '/taches', label: 'Tâches', icon: IconList },
   { href: '/agenda', label: 'Agenda', icon: IconCalendar },
+  { href: '/echeances', label: 'Échéances fiscales', icon: IconLandmark },
   { href: '/clients', label: 'Clients', icon: IconUsers },
   { href: '/factures', label: 'Factures', icon: IconEuro },
   { href: '/relances', label: 'Relances', icon: IconBell },
+  { href: '/lettres', label: 'Lettres de mission', icon: IconPen },
 ];
 const MOBILE = ['/app', '/sollicitations', '/taches', '/factures'];
 
@@ -82,8 +84,8 @@ function Shell({ children }: { children: React.ReactNode }) {
         const Icon = n.icon;
         return (
           <Link key={n.href} href={n.href}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${active(n.href) ? 'bg-white text-ink shadow-card border border-paper-line' : 'text-ink-soft hover:bg-white/60'}`}>
-            <Icon className={`w-[18px] h-[18px] ${active(n.href) ? 'text-sage-600' : ''}`} />{n.label}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${active(n.href) ? 'bg-white text-rose-700 shadow-card border border-rose-100' : 'text-ink-soft hover:bg-white/70 hover:text-ink'}`}>
+            <Icon className={`w-[18px] h-[18px] ${active(n.href) ? 'text-rose-600' : ''}`} />{n.label}
           </Link>
         );
       })}
@@ -93,7 +95,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh lg:flex">
       {/* Barre latérale ordinateur */}
-      <aside className="hidden lg:flex no-print flex-col w-64 shrink-0 h-dvh sticky top-0 border-r border-paper-line bg-paper-deep/60 p-4">
+      <aside className="hidden lg:flex no-print flex-col w-64 shrink-0 h-dvh sticky top-0 border-r border-paper-line bg-gradient-to-b from-rose-50/80 to-lilac-50/60 p-4">
         <div className="px-2 py-2"><Logo /></div>
         <p className="px-3 mt-1 text-xs text-ink-mute truncate">{cabinet.name}</p>
         <button onClick={() => setQuick('menu')} className="btn-primary mt-5 mb-4"><IconPlus className="w-4 h-4" />Noter quelque chose</button>
@@ -126,7 +128,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <nav className="lg:hidden no-print fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-paper-line flex items-end px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-1.5">
         {NAV.filter((n) => MOBILE.includes(n.href)).slice(0, 2).map((n) => <Tab key={n.href} n={n} on={active(n.href)} />)}
         <button onClick={() => setQuick('menu')} className="flex-1 flex flex-col items-center -mt-5">
-          <span className="w-14 h-14 rounded-2xl bg-sage-600 text-white flex items-center justify-center shadow-pop active:scale-95 transition"><IconPlus className="w-7 h-7" /></span>
+          <span className="w-14 h-14 rounded-2xl text-white flex items-center justify-center shadow-glow active:scale-95 transition bg-gradient-to-br from-rose-400 to-rose-600"><IconPlus className="w-7 h-7" /></span>
           <span className="text-[10px] mt-1 text-ink-mute">Noter</span>
         </button>
         {NAV.filter((n) => MOBILE.includes(n.href)).slice(2).map((n) => <Tab key={n.href} n={n} on={active(n.href)} />)}
@@ -139,7 +141,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <QuickBtn onClick={() => setQuick('task')} icon={<IconList />} title="Une tâche à faire" text="Avec échéance, et répétition si besoin" />
           <QuickBtn onClick={() => setQuick('appt')} icon={<IconCalendar />} title="Un rendez-vous" text="Le client reçoit un rappel la veille" />
           <Link href="/factures/nouvelle" onClick={() => setQuick(null)} className="flex items-center gap-3 p-3 rounded-xl border border-paper-line bg-white hover:bg-paper-deep text-left">
-            <span className="w-10 h-10 rounded-xl bg-sage-50 text-sage-700 flex items-center justify-center"><IconEuro /></span>
+            <span className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center"><IconEuro /></span>
             <span><span className="block font-semibold text-sm">Une facture d'honoraires</span><span className="block text-xs text-ink-mute">Envoyée et relancée automatiquement</span></span>
           </Link>
         </div>
@@ -155,7 +157,7 @@ function Tab({ n, on }: { n: NavItem; on: boolean }) {
   const Icon = n.icon;
   return (
     <Link href={n.href} className="flex-1 flex flex-col items-center gap-0.5 py-1">
-      <Icon className={`w-[22px] h-[22px] ${on ? 'text-sage-600' : 'text-ink-mute'}`} />
+      <Icon className={`w-[22px] h-[22px] ${on ? 'text-rose-600' : 'text-ink-mute'}`} />
       <span className={`text-[10px] ${on ? 'text-ink font-semibold' : 'text-ink-mute'}`}>{n.label}</span>
     </Link>
   );
@@ -164,7 +166,7 @@ function Tab({ n, on }: { n: NavItem; on: boolean }) {
 function QuickBtn({ onClick, icon, title, text }: { onClick: () => void; icon: React.ReactNode; title: string; text: string }) {
   return (
     <button onClick={onClick} className="flex items-center gap-3 p-3 rounded-xl border border-paper-line bg-white hover:bg-paper-deep text-left">
-      <span className="w-10 h-10 rounded-xl bg-sage-50 text-sage-700 flex items-center justify-center">{icon}</span>
+      <span className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center">{icon}</span>
       <span><span className="block font-semibold text-sm">{title}</span><span className="block text-xs text-ink-mute">{text}</span></span>
     </button>
   );

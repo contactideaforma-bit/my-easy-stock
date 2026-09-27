@@ -64,7 +64,7 @@ export default function Sollicitations() {
         </div>
         {members.length > 1 && (
           <label className="flex items-center gap-2 text-sm text-ink-soft ml-1">
-            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} className="accent-sage-600" />Seulement les miennes
+            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} className="accent-rose-600" />Seulement les miennes
           </label>
         )}
         <div className="relative ml-auto w-full sm:w-64">
@@ -82,7 +82,7 @@ export default function Sollicitations() {
             <button onClick={() => setOpen(r)} className="flex-1 min-w-0 text-left">
               <span className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-semibold">{r.subject}</span>
-                {r.status === 'nouvelle' && <span className="chip-sage">Nouveau</span>}
+                {r.status === 'nouvelle' && <span className="chip-rose">Nouveau</span>}
                 {r.status === 'en_cours' && <span className="chip-honey">En cours</span>}
               </span>
               <span className="block text-xs text-ink-mute mt-0.5">

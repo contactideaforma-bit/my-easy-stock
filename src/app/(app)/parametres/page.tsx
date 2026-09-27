@@ -5,6 +5,8 @@ import { api, supabase } from '@/lib/supabase';
 import { useCabinet } from '@/components/Cabinet';
 import { Field, Toast } from '@/components/Bits';
 import type { Cabinet } from '@/lib/types';
+import { paymentLink } from '@/lib/messages';
+import { DEFAULT_ENGAGEMENT, ENGAGEMENT_VARS } from '@/lib/engagement';
 
 export default function Parametres() {
   const { cabinet, me, refresh } = useCabinet();
@@ -20,14 +22,19 @@ export default function Parametres() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const { id, next_invoice_number, ...rest } = f;
-    const { error } = await supabase().from('mya_cabinets').update({ ...rest, next_invoice_number: Number(next_invoice_number), payment_terms_days: Number(f.payment_terms_days), default_vat_rate: Number(f.default_vat_rate) }).eq('id', id);
+    const { error } = await supabase().from('mya_cabinets').update({
+      ...rest, next_invoice_number: Number(next_invoice_number), payment_terms_days: Number(f.payment_terms_days),
+      default_vat_rate: Number(f.default_vat_rate), vat_due_day: Number(f.vat_due_day),
+      payment_link_template: f.payment_link_template?.trim() || null,
+      engagement_template: f.engagement_template?.trim() && f.engagement_template.trim() !== DEFAULT_ENGAGEMENT.trim() ? f.engagement_template : null,
+    }).eq('id', id);
     flash(error ? error.message : 'Paramètres enregistrés');
     refresh();
   }
 
   const Toggle = ({ k, title, text }: { k: keyof Cabinet; title: string; text: string }) => (
     <label className="flex items-start gap-3 py-2 cursor-pointer">
-      <input type="checkbox" checked={!!f[k]} onChange={(e) => set(k, e.target.checked)} className="accent-sage-600 w-4 h-4 mt-1" />
+      <input type="checkbox" checked={!!f[k]} onChange={(e) => set(k, e.target.checked)} className="accent-rose-600 w-4 h-4 mt-1" />
       <span><span className="block text-sm font-semibold">{title}</span><span className="block text-xs text-ink-mute">{text}</span></span>
     </label>
   );
@@ -46,6 +53,7 @@ export default function Parametres() {
           <Toggle k="reminders_enabled" title="Relances de paiement automatiques" text="Chaque matin, les relances prévues par le scénario partent toutes seules (email / SMS)." />
           <Toggle k="appointment_reminders" title="Rappel de rendez-vous au client" text="La veille du RDV, par email et SMS : fini les lapins." />
           <Toggle k="daily_digest" title="Programme du jour par email" text="Chaque membre reçoit à 8 h ses RDV, tâches et demandes du jour." />
+          <Toggle k="fiscal_calendar" title="Calendrier fiscal automatique" text="TVA, acomptes et solde d'IS, bilans, AG, dépôt au greffe, CFE : créés en tâches pour chaque client d'après sa fiche." />
           <div className="pt-2">
             <Field label="Factures d'honoraires récurrentes">
               <select className="input" value={f.recurring_mode} onChange={(e) => set('recurring_mode', e.target.value)}>
@@ -71,6 +79,36 @@ export default function Parametres() {
             try { await api('/api/status', {}); flash('Email de test envoyé : vérifiez votre boîte'); } catch (e: any) { flash(e.message); }
           }}>M'envoyer un email de test</button>
           <Field label="Nom d'expéditeur SMS (11 caractères, sans espace)"><input className="input" maxLength={11} value={f.sms_sender ?? ''} onChange={(e) => set('sms_sender', e.target.value.replace(/[^A-Za-z0-9]/g, ''))} /></Field>
+        </section>
+
+        <section className="card-pad space-y-3">
+          <h2 className="h2">Paiement en ligne (lien de votre banque)</h2>
+          <p className="text-xs text-ink-mute">Collez le lien de paiement fourni par votre banque (Qonto, Shine, Crédit Agricole Up2pay, SumUp, PayPal…). Il apparaît en bouton sur chaque facture et dans les relances.
+            Si votre banque accepte le montant dans l'adresse, utilisez les variables <code className="bg-paper-deep rounded px-1">{'{montant}'}</code> (ex. 120.50), <code className="bg-paper-deep rounded px-1">{'{montant_centimes}'}</code> (12050), <code className="bg-paper-deep rounded px-1">{'{numero}'}</code> et <code className="bg-paper-deep rounded px-1">{'{client}'}</code>.</p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Field label="Lien de paiement" className="sm:col-span-2"><input className="input" value={f.payment_link_template ?? ''} onChange={(e) => set('payment_link_template', e.target.value)} placeholder="https://pay.mabanque.fr/cabinet?amount={montant}&ref={numero}" /></Field>
+            <Field label="Texte du bouton"><input className="input" value={f.payment_link_label} onChange={(e) => set('payment_link_label', e.target.value)} /></Field>
+          </div>
+          {f.payment_link_template && (
+            <p className="text-xs text-ink-soft break-all">Exemple pour une facture F-2026-0042 de 180,00 € : <b>{paymentLink({ payment_link: null, number: 'F-2026-0042', amount_ttc: 180, paid_amount: 0 }, { name: 'Boulangerie Durand' }, f)}</b></p>
+          )}
+        </section>
+
+        <section className="card-pad space-y-3">
+          <h2 className="h2">Calendrier fiscal</h2>
+          <Field label="Jour cible des déclarations de TVA (le mois suivant)">
+            <input type="number" min={1} max={28} className="input w-28" value={f.vat_due_day} onChange={(e) => set('vat_due_day', e.target.value)} />
+          </Field>
+          <p className="text-xs text-ink-mute">Les dates créées sont des cibles internes, volontairement en avance sur les dates limites légales (qui varient selon le SIREN et la forme). Chaque échéance reste modifiable.</p>
+        </section>
+
+        <section className="card-pad space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="h2">Modèle de lettre de mission</h2>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => set('engagement_template', DEFAULT_ENGAGEMENT)}>Revenir au modèle d'origine</button>
+          </div>
+          <p className="text-xs text-ink-mute">Variables remplies depuis la fiche client : {ENGAGEMENT_VARS.map((v) => <code key={v} className="bg-paper-deep rounded px-1 mx-0.5">{v}</code>)}. Relisez et adaptez ce modèle à votre pratique avant le premier envoi.</p>
+          <textarea className="input min-h-[360px] font-mono text-[12.5px] leading-relaxed" value={f.engagement_template ?? DEFAULT_ENGAGEMENT} onChange={(e) => set('engagement_template', e.target.value)} />
         </section>
 
         <section className="card-pad space-y-3">
@@ -108,5 +146,5 @@ export default function Parametres() {
 }
 
 function Svc({ ok, label }: { ok: boolean; label: string }) {
-  return <li className="flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${ok ? 'bg-sage-500' : 'bg-clay-500'}`} />{label}<span className="text-ink-mute">— {ok ? 'branché' : 'à configurer'}</span></li>;
+  return <li className="flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${ok ? 'bg-mint-500' : 'bg-clay-500'}`} />{label}<span className="text-ink-mute">— {ok ? 'branché' : 'à configurer'}</span></li>;
 }

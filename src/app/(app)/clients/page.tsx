@@ -9,6 +9,7 @@ import { Avatar, Empty } from '@/components/Bits';
 import Modal from '@/components/Modal';
 import { ClientForm } from '@/components/Forms';
 import { IconPlus, IconSearch } from '@/components/Icons';
+import { PayerDot, PayerLegend, PAYER, usePayers } from '@/components/Payer';
 import { eur, invoiceBalance, LABELS, todayISO } from '@/lib/utils';
 import type { Client } from '@/lib/types';
 
@@ -20,6 +21,8 @@ export default function Clients() {
   const [status, setStatus] = useState<'actif' | 'prospect' | 'archive' | 'impayes'>('actif');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [lvl, setLvl] = useState<number | null>(null);
+  const payers = usePayers(tick);
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -45,9 +48,10 @@ export default function Clients() {
     const s = q.trim().toLowerCase();
     return rows.filter((c) => {
       if (status === 'impayes' ? !(due[c.id]?.late > 0) : c.status !== status) return false;
+      if (lvl !== null && payers[c.id]?.level !== lvl) return false;
       return !s || `${c.name} ${c.contact_name ?? ''} ${c.siren ?? ''} ${c.email ?? ''}`.toLowerCase().includes(s);
     });
-  }, [rows, q, status, due]);
+  }, [rows, q, status, due, lvl, payers]);
 
   const nbLate = rows.filter((c) => due[c.id]?.late > 0).length;
 
@@ -74,12 +78,27 @@ export default function Clients() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs font-semibold text-ink-mute mr-1">Profil payeur :</span>
+        <button onClick={() => setLvl(null)} className={lvl === null ? 'chip-ink py-1 px-3' : 'chip-gray py-1 px-3'}>Tous</button>
+        {PAYER.map((p, i) => {
+          const n = rows.filter((c) => c.status === 'actif' && payers[c.id]?.level === i).length;
+          return (
+            <button key={i} onClick={() => setLvl(lvl === i ? null : i)} title={p.label}
+              className="chip py-1 px-3 border" style={{ background: lvl === i ? p.color : p.bg, color: lvl === i ? '#fff' : p.color, borderColor: p.color + '55' }}>
+              {p.short}{n ? ` · ${n}` : ''}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="card overflow-hidden">
         {list.length === 0 ? <Empty title="Aucun client ici" action={status === 'actif' && !q ? <button className="btn-primary" onClick={() => setOpen(true)}>Créer le premier dossier</button> : undefined} /> : (
           <table className="w-full text-sm">
             <thead className="hidden md:table-header-group text-xs text-ink-mute text-left">
               <tr className="border-b border-paper-line">
                 <th className="px-4 py-2.5 font-semibold">Client</th>
+                <th className="px-4 py-2.5 font-semibold">Payeur</th>
                 <th className="px-4 py-2.5 font-semibold">Honoraires</th>
                 <th className="px-4 py-2.5 font-semibold">TVA</th>
                 <th className="px-4 py-2.5 font-semibold text-right">Reste dû</th>
@@ -90,8 +109,13 @@ export default function Clients() {
               {list.map((c) => (
                 <tr key={c.id} onClick={() => router.push(`/clients/${c.id}`)} className="border-b border-paper-line last:border-0 hover:bg-paper/60 cursor-pointer">
                   <td className="px-4 py-3">
-                    <Link href={`/clients/${c.id}`} className="font-semibold">{c.name}</Link>
+                    <span className="flex items-center gap-2"><span className="md:hidden"><PayerDot p={payers[c.id]} /></span><Link href={`/clients/${c.id}`} className="font-semibold">{c.name}</Link></span>
                     <span className="block text-xs text-ink-mute">{[c.legal_form, c.contact_name].filter(Boolean).join(' · ') || LABELS.kind[c.kind]}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span className="flex items-center gap-2 text-xs font-semibold" style={{ color: payers[c.id] ? PAYER[payers[c.id].level].color : '#9a8592' }}>
+                      <PayerDot p={payers[c.id]} size={12} />{payers[c.id] ? PAYER[payers[c.id].level].short : 'Nouveau'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-ink-soft">{c.fee_amount ? `${eur(c.fee_amount)} HT · ${LABELS.freq[c.fee_frequency].toLowerCase()}` : '—'}</td>
                   <td className="px-4 py-3 hidden md:table-cell text-ink-soft capitalize">{c.vat_regime ?? '—'}</td>
@@ -109,6 +133,8 @@ export default function Clients() {
           </table>
         )}
       </div>
+
+      <PayerLegend />
 
       <Modal open={open} onClose={() => setOpen(false)} title="Nouveau client" wide>
         {open && <ClientForm onSaved={(id) => { setOpen(false); router.push(`/clients/${id}`); }} />}

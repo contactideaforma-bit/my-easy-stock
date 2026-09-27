@@ -94,7 +94,7 @@ export default function InvoiceEditor({ initial, clientId }: { initial?: Invoice
         </div>
 
         <div className="card-pad space-y-3">
-          <Field label="Lien de paiement en ligne (facultatif)"><input className="input" value={payLink} onChange={(e) => setPayLink(e.target.value)} placeholder="https://… (Qonto, Stripe, SumUp…)" /></Field>
+          <Field label="Lien de paiement spécifique (facultatif)"><input className="input" value={payLink} onChange={(e) => setPayLink(e.target.value)} placeholder={cabinet.payment_link_template ? 'Vide = lien de votre banque (Paramètres)' : 'https://… ou configurez le lien de votre banque dans Paramètres'} /></Field>
           <Field label="Mention sur la facture"><textarea className="input" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
         </div>
       </div>
@@ -112,7 +112,7 @@ export default function InvoiceEditor({ initial, clientId }: { initial?: Invoice
           <div className="flex justify-between font-display text-2xl pt-2 border-t border-paper-line"><span>Total</span><span>{eur(t.ttc)}</span></div>
 
           <label className="flex items-center gap-2 text-sm pt-3">
-            <input type="checkbox" checked={sms} onChange={(e) => setSms(e.target.checked)} className="accent-sage-600 w-4 h-4" />Prévenir aussi par SMS
+            <input type="checkbox" checked={sms} onChange={(e) => setSms(e.target.checked)} className="accent-rose-600 w-4 h-4" />Prévenir aussi par SMS
           </label>
           {err && <p className="text-sm text-clay-700 bg-clay-50 rounded-lg px-3 py-2">{err}</p>}
           <button className="btn-primary w-full" disabled={busy} onClick={() => save(true)}>{busy ? '…' : 'Valider et envoyer'}</button>

@@ -28,7 +28,7 @@ export default function Bienvenue() {
   return (
     <main className="min-h-dvh flex items-center justify-center p-6">
       <form onSubmit={submit} className="card p-6 sm:p-8 w-full max-w-md space-y-4">
-        <p className="chip-sage">Bienvenue</p>
+        <p className="chip-rose">Bienvenue</p>
         <h1 className="h1">Installons votre cabinet</h1>
         <p className="text-sm text-ink-mute">Deux informations suffisent pour commencer. Le reste (IBAN, logo, relances) se règle plus tard dans Paramètres.</p>
         <label className="block"><span className="label">Votre prénom et nom</span>

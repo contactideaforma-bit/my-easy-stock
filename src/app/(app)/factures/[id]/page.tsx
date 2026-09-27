@@ -132,7 +132,7 @@ export default function FacturePage() {
             {pays.length === 0 ? <p className="px-4 pb-4 text-sm text-ink-mute">Aucun paiement enregistré.</p> : pays.map((p) => (
               <div key={p.id} className="row">
                 <span className="flex-1 text-sm">{frDate(p.paid_on)} · {LABELS.method[p.method]}{p.note ? ` · ${p.note}` : ''}</span>
-                <span className="font-semibold text-sage-700">{eur(p.amount)}</span>
+                <span className="font-semibold text-mint-700">{eur(p.amount)}</span>
                 <button className="text-xs text-ink-mute hover:text-clay-600" onClick={async () => {
                   if (!confirm('Supprimer ce paiement ?')) return;
                   await supabase().from('mya_payments').delete().eq('id', p.id); bump(); load();
@@ -171,7 +171,7 @@ export default function FacturePage() {
                     const done = r.step <= inv.reminder_level;
                     return (
                       <li key={r.id} className="flex items-center gap-2 text-sm">
-                        <span className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center ${done ? 'bg-sage-600 text-white' : 'bg-paper-deep text-ink-mute'}`}>{r.step}</span>
+                        <span className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center ${done ? 'bg-rose-600 text-white' : 'bg-paper-deep text-ink-mute'}`}>{r.step}</span>
                         <span className="flex-1">{LABELS.tone[r.tone]} <span className="text-ink-mute">· {r.channels.join(' + ')}</span></span>
                         <span className="text-xs text-ink-mute">{done ? 'envoyée' : frDate(date, { day: 'numeric', month: 'short' })}</span>
                       </li>
@@ -213,7 +213,7 @@ function Box({ label, value, tone }: { label: string; value: string; tone?: 'cla
   return (
     <div className="card-pad">
       <p className="text-xs font-semibold text-ink-mute">{label}</p>
-      <p className={`kpi-num mt-1 text-xl sm:text-2xl ${tone === 'clay' ? 'text-clay-600' : tone === 'sage' ? 'text-sage-700' : ''}`}>{value}</p>
+      <p className={`kpi-num mt-1 text-xl sm:text-2xl ${tone === 'clay' ? 'text-clay-600' : tone === 'sage' ? 'text-mint-700' : ''}`}>{value}</p>
     </div>
   );
 }

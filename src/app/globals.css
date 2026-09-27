@@ -8,38 +8,47 @@ html { -webkit-tap-highlight-color: transparent; }
 
 body {
   min-height: 100dvh;
-  background: #f6f5f1;
-  color: #1c2433;
+  color: #3a2233;
   font-feature-settings: 'tnum';
+  background-color: #fdf8f9;
+  /* Halo très léger rose et lavande : doux, jamais chargé */
+  background-image:
+    radial-gradient(48rem 30rem at 100% -10%, rgba(247, 161, 192, 0.18), transparent 60%),
+    radial-gradient(40rem 28rem at -10% 110%, rgba(169, 150, 230, 0.12), transparent 60%);
+  background-attachment: fixed;
 }
 
+::selection { background: #fbc9dc; color: #3a2233; }
+
 @layer components {
-  .card { @apply bg-paper-card border border-paper-line rounded-2xl shadow-card; }
+  .card { @apply bg-paper-card border border-paper-line rounded-3xl shadow-card; }
   .card-pad { @apply card p-4 sm:p-5; }
-  .h1 { @apply font-display text-[28px] sm:text-[34px] leading-tight text-ink; }
+  .h1 { @apply font-display text-[28px] sm:text-[34px] leading-tight text-ink tracking-tight; }
   .h2 { @apply text-[15px] font-bold text-ink tracking-tight; }
   .muted { @apply text-ink-mute; }
 
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap; }
-  .btn-primary { @apply btn bg-sage-600 text-white hover:bg-sage-700; }
-  .btn-ghost { @apply btn bg-white border border-paper-line text-ink hover:bg-paper-deep; }
-  .btn-soft { @apply btn bg-sage-50 text-sage-800 hover:bg-sage-100; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap; }
+  .btn-primary { @apply btn text-white shadow-glow bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700; }
+  .btn-ghost { @apply btn bg-white border border-paper-line text-ink hover:bg-rose-50 hover:border-rose-200; }
+  .btn-soft { @apply btn bg-rose-50 text-rose-700 hover:bg-rose-100; }
   .btn-danger { @apply btn bg-white border border-clay-100 text-clay-700 hover:bg-clay-50; }
-  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
+  .btn-sm { @apply px-3 py-1.5 text-xs rounded-xl; }
 
   .label { @apply block text-xs font-semibold text-ink-soft mb-1; }
-  .input { @apply w-full rounded-xl border border-paper-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-ink-mute/70 focus:outline-none focus:ring-2 focus:ring-sage-200 focus:border-sage-400; }
+  .input { @apply w-full rounded-2xl border border-paper-line bg-white px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-mute/70 focus:outline-none focus:ring-4 focus:ring-rose-100 focus:border-rose-300 transition; }
   textarea.input { @apply min-h-[90px]; }
 
   .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold; }
   .chip-gray { @apply chip bg-paper-deep text-ink-soft; }
-  .chip-sage { @apply chip bg-sage-50 text-sage-800; }
+  .chip-rose { @apply chip bg-rose-100 text-rose-700; }
+  .chip-sage { @apply chip bg-mint-50 text-mint-700; }
+  .chip-lilac { @apply chip bg-lilac-100 text-lilac-700; }
   .chip-clay { @apply chip bg-clay-50 text-clay-700; }
   .chip-honey { @apply chip bg-honey-50 text-honey-600; }
-  .chip-ink { @apply chip bg-ink text-white; }
+  .chip-ink { @apply chip bg-rose-600 text-white; }
 
-  .tab { @apply px-3 py-1.5 rounded-lg text-sm font-semibold text-ink-soft hover:bg-paper-deep; }
-  .tab-on { @apply bg-white text-ink shadow-card border border-paper-line; }
+  .tab { @apply px-3 py-1.5 rounded-xl text-sm font-semibold text-ink-soft hover:text-ink whitespace-nowrap; }
+  .tab-on { @apply bg-white text-rose-700 shadow-card border border-rose-100; }
 
   .row { @apply flex items-center gap-3 px-4 py-3 border-b border-paper-line last:border-b-0; }
   .kpi-num { @apply font-display text-2xl sm:text-3xl text-ink; }

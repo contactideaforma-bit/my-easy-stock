@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
   const { error } = await admin.from('mya_members').upsert({
     cabinet_id: ctx.member.cabinet_id, user_id: userId, role: role === 'titulaire' ? 'titulaire' : 'collaborateur',
-    full_name, email: String(email).trim().toLowerCase(), color: color || '#3a8a74',
+    full_name, email: String(email).trim().toLowerCase(), color: color || '#8f78d9',
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });

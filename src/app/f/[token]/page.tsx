@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import { adminClient } from '@/lib/server';
 import { eur, frDate, invoiceBalance, todayISO } from '@/lib/utils';
+import { paymentLink } from '@/lib/messages';
 import type { Cabinet, Client, Invoice } from '@/lib/types';
-import PrintButton from './PrintButton';
+import PrintButton from '@/components/PrintButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Facture', robots: { index: false } };
@@ -20,6 +21,7 @@ export default async function PublicInvoice({ params }: { params: { token: strin
   const i = inv as Invoice; const c = cab as Cabinet; const cl = client as Client;
   const balance = invoiceBalance(i);
   const late = i.status === 'envoyee' && i.due_date < todayISO();
+  const payUrl = paymentLink(i, cl, c);
 
   return (
     <main className="min-h-dvh bg-paper py-6 px-4 print:p-0 print:bg-white">
@@ -32,7 +34,7 @@ export default async function PublicInvoice({ params }: { params: { token: strin
               {c.iban && <p className="text-sm mt-1">Virement : <b className="font-mono">{c.iban}</b>{c.bic ? ` · BIC ${c.bic}` : ''} · référence <b>{i.number}</b></p>}
             </div>
             <div className="flex flex-col gap-2">
-              {i.payment_link && <a href={i.payment_link} target="_blank" rel="noreferrer" className="btn-primary">Payer en ligne</a>}
+              {payUrl && <a href={payUrl} target="_blank" rel="noreferrer" className="btn-primary">{c.payment_link_label || 'Payer en ligne'}</a>}
               <PrintButton />
             </div>
           </div>
@@ -40,7 +42,7 @@ export default async function PublicInvoice({ params }: { params: { token: strin
         {(i.status !== 'envoyee' || balance <= 0) && <div className="no-print mb-4 flex justify-end"><PrintButton /></div>}
 
         <article className="bg-white border border-paper-line rounded-2xl p-6 sm:p-10 print:border-0 print:rounded-none print:p-0 text-[13px] text-ink relative">
-          {i.status === 'payee' && <span className="absolute top-8 right-8 rotate-[-8deg] border-2 border-sage-600 text-sage-700 font-bold px-3 py-1 rounded-lg text-lg">PAYÉE</span>}
+          {i.status === 'payee' && <span className="absolute top-8 right-8 rotate-[-8deg] border-2 border-mint-600 text-mint-700 font-bold px-3 py-1 rounded-lg text-lg">PAYÉE</span>}
           {i.status === 'annulee' && <span className="absolute top-8 right-8 rotate-[-8deg] border-2 border-clay-600 text-clay-700 font-bold px-3 py-1 rounded-lg text-lg">ANNULÉE</span>}
           <header className="flex flex-wrap justify-between gap-6">
             <div>
@@ -85,7 +87,7 @@ export default async function PublicInvoice({ params }: { params: { token: strin
             <div className="flex justify-between"><span>Total HT</span><span>{eur(i.amount_ht)}</span></div>
             <div className="flex justify-between"><span>TVA {i.vat_rate} %</span><span>{eur(i.amount_ttc - i.amount_ht)}</span></div>
             <div className="flex justify-between font-bold text-base border-t-2 border-ink pt-2"><span>Total TTC</span><span>{eur(i.amount_ttc)}</span></div>
-            {Number(i.paid_amount) > 0 && <div className="flex justify-between text-sage-700"><span>Déjà réglé</span><span>− {eur(i.paid_amount)}</span></div>}
+            {Number(i.paid_amount) > 0 && <div className="flex justify-between text-mint-700"><span>Déjà réglé</span><span>− {eur(i.paid_amount)}</span></div>}
             {Number(i.paid_amount) > 0 && <div className="flex justify-between font-bold"><span>Reste à payer</span><span>{eur(balance)}</span></div>}
           </div>
 

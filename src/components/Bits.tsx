@@ -17,7 +17,7 @@ export function Avatar({ id, size = 'sm' }: { id: string | null | undefined; siz
 }
 
 export function PriorityDot({ p }: { p: string }) {
-  const c = p === 'urgente' ? 'bg-clay-600' : p === 'haute' ? 'bg-honey-500' : p === 'basse' ? 'bg-paper-line' : 'bg-sage-300';
+  const c = p === 'urgente' ? 'bg-clay-600' : p === 'haute' ? 'bg-honey-500' : p === 'basse' ? 'bg-paper-line' : 'bg-rose-300';
   return <span title={`Priorité ${LABELS.priority[p]}`} className={`inline-block w-2 h-2 rounded-full ${c} shrink-0`} />;
 }
 

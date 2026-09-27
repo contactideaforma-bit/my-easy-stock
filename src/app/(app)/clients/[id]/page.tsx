@@ -10,11 +10,14 @@ import { InvoiceBadge } from '@/components/InvoiceBadge';
 import Modal from '@/components/Modal';
 import { AppointmentForm, ClientForm, RequestForm, TaskForm } from '@/components/Forms';
 import { TaskRow } from '@/components/TaskRow';
+import EngagementPanel, { ENG_STATUS } from '@/components/EngagementPanel';
+import { PayerBadge, PayerGauge, PAYER, usePayers } from '@/components/Payer';
+import { generateFiscal } from '@/lib/fiscalClient';
 import { IconBack, IconMail, IconMessage, IconPause, IconPhone, IconPlay } from '@/components/Icons';
 import { daysBetween, eur, frDate, frTime, invoiceBalance, LABELS, todayISO, whatsappLink } from '@/lib/utils';
-import type { Appointment, Client, Invoice, ReminderLog, Request, Task } from '@/lib/types';
+import type { Appointment, Client, Engagement, Invoice, ReminderLog, Request, Task } from '@/lib/types';
 
-type Tab = 'suivi' | 'factures' | 'taches' | 'rdv' | 'infos';
+type Tab = 'suivi' | 'factures' | 'taches' | 'rdv' | 'lettre' | 'infos';
 
 export default function ClientPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +30,13 @@ export default function ClientPage() {
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [logs, setLogs] = useState<ReminderLog[]>([]);
   const [tab, setTab] = useState<Tab>('suivi');
+  const [engs, setEngs] = useState<Engagement[]>([]);
+  const payers = usePayers(tick);
+  const loadEngs = useCallback(async () => {
+    const { data } = await supabase().from('mya_engagements').select('*').eq('client_id', id).order('created_at', { ascending: false });
+    setEngs((data ?? []) as Engagement[]);
+  }, [id]);
+  useEffect(() => { loadEngs(); }, [loadEngs]);
   const [modal, setModal] = useState<null | 'edit' | 'req' | 'task' | 'appt' | { t: 'task'; v: Task } | { t: 'req'; v: Request } | { t: 'appt'; v: Appointment }>(null);
 
   const load = useCallback(async () => {
@@ -57,8 +67,8 @@ export default function ClientPage() {
   const lateSum = open.filter((i) => i.due_date < today).reduce((s, i) => s + invoiceBalance(i), 0);
   const paid = inv.filter((i) => i.status === 'payee' && i.paid_at);
   const avgDelay = paid.length ? Math.round(paid.reduce((s, i) => s + daysBetween(i.issue_date, i.paid_at!), 0) / paid.length) : null;
-  const avgLate = paid.length ? Math.round(paid.reduce((s, i) => s + Math.max(0, daysBetween(i.due_date, i.paid_at!)), 0) / paid.length) : null;
-  const payer = avgLate === null ? null : avgLate <= 3 ? { l: 'Bon payeur', c: 'chip-sage' } : avgLate <= 20 ? { l: 'Payeur lent', c: 'chip-honey' } : { l: 'Mauvais payeur', c: 'chip-clay' };
+  const payer = payers[c.id];
+  const lastEng = engs[0];
   const wa = whatsappLink(c.phone, `Bonjour ${c.contact_name ?? ''}, `);
 
   async function togglePause() {
@@ -84,7 +94,8 @@ export default function ClientPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="h1">{c.name}</h1>
               {c.status !== 'actif' && <span className="chip-gray">{c.status === 'prospect' ? 'Prospect' : 'Archivé'}</span>}
-              {payer && <span className={payer.c}>{payer.l}</span>}
+              <PayerBadge p={payer} />
+              {lastEng ? <button onClick={() => setTab('lettre')} className={ENG_STATUS[lastEng.status].c}>LM : {ENG_STATUS[lastEng.status].l.toLowerCase()}</button> : c.status === 'actif' && <button onClick={() => setTab('lettre')} className="chip-honey">Pas de lettre de mission</button>}
             </div>
             <p className="text-sm text-ink-mute mt-1">{[c.legal_form, c.siren && `SIREN ${c.siren}`, c.activity].filter(Boolean).join(' · ')}</p>
             <p className="text-sm mt-2">{c.contact_name}{c.owner_member && <span className="text-ink-mute"> · suivi par {memberName(c.owner_member)}</span>}</p>
@@ -97,11 +108,16 @@ export default function ClientPage() {
           </div>
           <div className="grid grid-cols-3 gap-3 w-full sm:w-auto">
             <Stat label="Reste dû" value={eur(dueSum)} tone={lateSum > 0 ? 'clay' : undefined} sub={lateSum > 0 ? `${eur(lateSum)} en retard` : undefined} />
-            <Stat label="Délai de paiement" value={avgDelay === null ? '—' : `${avgDelay} j`} sub="en moyenne" />
+            <div className="rounded-xl bg-paper px-3 py-2.5 min-w-[130px]">
+              <p className="text-[11px] font-semibold text-ink-mute">Profil payeur</p>
+              <p className="font-display text-xl" style={{ color: payer ? PAYER[payer.level].color : undefined }}>{payer ? PAYER[payer.level].short : '—'}</p>
+              <PayerGauge p={payer} />
+              <p className="text-[11px] text-ink-mute mt-1">{avgDelay === null ? 'pas encore d’historique' : `payé en ${avgDelay} j en moyenne`}</p>
+            </div>
             <Stat label="Honoraires" value={c.fee_amount ? eur(c.fee_amount) : '—'} sub={c.fee_amount ? `HT · ${LABELS.freq[c.fee_frequency].toLowerCase()}` : undefined} />
           </div>
         </div>
-        <div className={`mt-4 flex flex-wrap items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${c.reminders_paused ? 'bg-honey-50' : 'bg-sage-50'}`}>
+        <div className={`mt-4 flex flex-wrap items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${c.reminders_paused ? 'bg-honey-50' : 'bg-rose-50'}`}>
           <span className="flex-1">
             {c.reminders_paused ? 'Relances automatiques en pause pour ce client (ex. échéancier accordé).' : `Relances automatiques actives${cabinet.reminders_enabled ? '' : ' — mais désactivées pour tout le cabinet dans Paramètres'}.`}
           </span>
@@ -111,7 +127,7 @@ export default function ClientPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex gap-1 bg-paper-deep p-1 rounded-xl overflow-x-auto">
-          {([['suivi', 'Suivi'], ['factures', `Factures · ${inv.length}`], ['taches', `Tâches · ${tasks.filter((t) => t.status !== 'fait').length}`], ['rdv', `RDV · ${appts.length}`], ['infos', 'Dossier']] as [Tab, string][]).map(([k, l]) => (
+          {([['suivi', 'Suivi'], ['factures', `Factures · ${inv.length}`], ['taches', `Tâches · ${tasks.filter((t) => t.status !== 'fait').length}`], ['rdv', `RDV · ${appts.length}`], ['lettre', 'Lettre de mission'], ['infos', 'Dossier']] as [Tab, string][]).map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} className={`tab ${tab === k ? 'tab-on' : ''}`}>{l}</button>
           ))}
         </div>
@@ -193,7 +209,16 @@ export default function ClientPage() {
         </div>
       )}
 
+      {tab === 'lettre' && <EngagementPanel client={c} onChange={loadEngs} />}
+
       {tab === 'infos' && (
+        <div className="space-y-3">
+        {cabinet.fiscal_calendar && c.status === 'actif' && (
+          <div className="card-pad flex flex-wrap items-center gap-3">
+            <p className="text-sm flex-1">Calendrier fiscal : TVA, impôts, bilan, AG et CFE sont créés automatiquement en tâches d'après ce dossier.</p>
+            <button className="btn-soft btn-sm" onClick={async () => { const n = await generateFiscal(c, cabinet.vat_due_day, 365).catch(() => 0); alert(n ? `${n} échéance(s) ajoutée(s) sur 12 mois.` : 'Échéancier déjà à jour.'); load(); }}>Préparer les 12 prochains mois</button>
+          </div>
+        )}
         <div className="card-pad grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
           <Info k="Type" v={LABELS.kind[c.kind]} />
           <Info k="Forme juridique" v={c.legal_form} />
@@ -208,6 +233,7 @@ export default function ClientPage() {
           <Info k="Paiement habituel" v={c.payment_method ? LABELS.method[c.payment_method] : null} />
           <Info k="Prochaine facture d'honoraires" v={c.fee_frequency !== 'ponctuel' && c.fee_next_date ? frDate(c.fee_next_date) : null} />
           {c.notes && <div className="sm:col-span-2"><p className="label">Notes internes</p><p className="whitespace-pre-wrap">{c.notes}</p></div>}
+        </div>
         </div>
       )}
 

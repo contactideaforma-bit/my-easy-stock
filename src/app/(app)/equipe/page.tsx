@@ -7,7 +7,7 @@ import { Field, Toast } from '@/components/Bits';
 import Modal from '@/components/Modal';
 import { IconPlus } from '@/components/Icons';
 
-const COLORS = ['#2f7d6d', '#c2562d', '#5b6ee1', '#b7791f', '#8e4fb8', '#1f8aa8', '#d0467a'];
+const COLORS = ['#cc3a73', '#8f78d9', '#4aa87c', '#e0894a', '#5b9bd5', '#b565a7', '#e2568c'];
 
 export default function Equipe() {
   const { members, me, refresh } = useCabinet();

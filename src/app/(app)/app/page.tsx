@@ -9,6 +9,7 @@ import Modal from '@/components/Modal';
 import { AppointmentForm, RequestForm, TaskForm } from '@/components/Forms';
 import { IconAlert, IconChevron, IconPhone } from '@/components/Icons';
 import { TaskRow } from '@/components/TaskRow';
+import { PayerDot, usePayers } from '@/components/Payer';
 import { addDays, daysBetween, eur, frDate, frTime, invoiceBalance, LABELS, todayISO } from '@/lib/utils';
 import type { Appointment, Invoice, Request, Task } from '@/lib/types';
 
@@ -24,6 +25,7 @@ export default function Journee() {
   const [autoSent, setAutoSent] = useState(0);
   const [edit, setEdit] = useState<null | { t: 'task'; v: Task } | { t: 'req'; v: Request } | { t: 'appt'; v: Appointment }>(null);
   const today = todayISO();
+  const payers = usePayers(tick);
 
   const load = useCallback(async () => {
     const sb = supabase();
@@ -143,7 +145,7 @@ export default function Journee() {
                   <span className="block text-sm font-semibold truncate">{r.subject}</span>
                   <span className="block text-xs text-ink-mute truncate">{r.mya_clients?.name ?? r.contact_name ?? '—'} · {LABELS.channel[r.channel]}</span>
                 </span>
-                {r.status === 'nouvelle' && <span className="chip-sage">Nouveau</span>}
+                {r.status === 'nouvelle' && <span className="chip-rose">Nouveau</span>}
               </button>
             ))}
           </section>
@@ -155,7 +157,7 @@ export default function Journee() {
               <Link key={i.id} href={`/factures/${i.id}`} className="row hover:bg-paper/60">
                 <span className="w-8 h-8 rounded-full bg-clay-50 text-clay-700 flex items-center justify-center"><IconPhone className="w-4 h-4" /></span>
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-semibold truncate">{i.mya_clients?.name}</span>
+                  <span className="flex items-center gap-1.5 text-sm font-semibold truncate"><PayerDot p={payers[i.client_id]} />{i.mya_clients?.name}</span>
                   <span className="block text-xs text-ink-mute">{i.number} · {daysBetween(i.due_date, today)} j de retard</span>
                 </span>
                 <span className="text-sm font-bold text-clay-700">{eur(invoiceBalance(i))}</span>
@@ -184,7 +186,7 @@ function Kpi({ label, value, sub, tone, href }: { label: string; value: string; 
   return (
     <Link href={href} className="card-pad hover:shadow-pop transition">
       <p className="text-xs font-semibold text-ink-mute">{label}</p>
-      <p className={`kpi-num mt-1 ${tone === 'clay' ? 'text-clay-600' : tone === 'sage' ? 'text-sage-700' : ''}`}>{value}</p>
+      <p className={`kpi-num mt-1 ${tone === 'clay' ? 'text-clay-600' : tone === 'sage' ? 'text-mint-700' : ''}`}>{value}</p>
       {sub && <p className="text-xs text-ink-mute mt-0.5">{sub}</p>}
     </Link>
   );
@@ -194,7 +196,7 @@ function Head({ title, href, count }: { title: string; href: string; count?: num
   return (
     <div className="flex items-center justify-between px-4 pt-4 pb-2">
       <h2 className="h2">{title}{count ? <span className="ml-2 chip-gray">{count}</span> : null}</h2>
-      <Link href={href} className="text-xs font-semibold text-sage-700 hover:underline">Tout voir</Link>
+      <Link href={href} className="text-xs font-semibold text-rose-700 hover:underline">Tout voir</Link>
     </div>
   );
 }
@@ -202,7 +204,7 @@ function Head({ title, href, count }: { title: string; href: string; count?: num
 function ApptRow({ a, onClick }: { a: Appointment; onClick: () => void }) {
   return (
     <button onClick={onClick} className="row w-full text-left hover:bg-paper/60">
-      <span className="w-14 text-sm font-bold text-sage-700">{frTime(a.starts_at)}</span>
+      <span className="w-14 text-sm font-bold text-rose-700">{frTime(a.starts_at)}</span>
       <span className="flex-1 min-w-0">
         <span className="block text-sm font-semibold truncate">{a.title}</span>
         <span className="block text-xs text-ink-mute truncate">{a.mya_clients?.name ?? '—'} · {LABELS.apptKind[a.kind]}</span>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminClient, appUrl, sendEmail, sendSms } from '@/lib/server';
 import { dueRule, sendInvoiceMessage, type Channel } from '@/lib/reminders';
 import { INVOICE_BODY, INVOICE_SUBJECT } from '@/lib/messages';
+import { fiscalTaskRows } from '@/lib/fiscal';
 import { addDays, addMonths, computeTotals, eur, FREQ_MONTHS, frDate, frTime, intlPhone, invoiceBalance, todayISO } from '@/lib/utils';
 import type { Appointment, Cabinet, Client, Invoice, Member, ReminderRule } from '@/lib/types';
 
@@ -10,6 +11,7 @@ export const maxDuration = 60;
 
 /**
  * Tâche planifiée quotidienne (Vercel Cron, 8 h heure de Paris) :
+ * 0. alimente le calendrier fiscal (échéances des 60 prochains jours)
  * 1. prépare / envoie les factures d'honoraires récurrentes
  * 2. envoie les relances de paiement selon le scénario
  * 3. envoie les rappels de rendez-vous du lendemain
@@ -29,8 +31,9 @@ export async function GET(req: Request) {
   const { data: cabinets } = await sb.from('mya_cabinets').select('*');
 
   for (const cab of (cabinets ?? []) as Cabinet[]) {
-    const r = { cabinet: cab.name, factures_recurrentes: 0, relances: 0, relances_echec: 0, rappels_rdv: 0, recaps: 0 };
+    const r = { cabinet: cab.name, echeances_fiscales: 0, factures_recurrentes: 0, relances: 0, relances_echec: 0, rappels_rdv: 0, recaps: 0 };
     try {
+      if (cab.fiscal_calendar) await fiscal(sb, cab, today, r);
       await recurring(sb, cab, today, r);
       if (cab.reminders_enabled) await reminders(sb, cab, today, r);
       if (cab.appointment_reminders) await appointmentReminders(sb, cab, today, r);
@@ -44,6 +47,16 @@ export async function GET(req: Request) {
 }
 
 type SB = ReturnType<typeof adminClient>;
+
+// ---------------------------------------------------------------- 0. Calendrier fiscal
+async function fiscal(sb: SB, cab: Cabinet, today: string, r: any) {
+  const { data: clients } = await sb.from('mya_clients').select('*').eq('cabinet_id', cab.id).eq('status', 'actif');
+  const rows = ((clients ?? []) as Client[]).flatMap((c) => fiscalTaskRows(c, today, 60, cab.vat_due_day ?? 15));
+  for (let i = 0; i < rows.length; i += 500) {
+    const { data } = await sb.from('mya_tasks').upsert(rows.slice(i, i + 500), { onConflict: 'client_id,fiscal_key', ignoreDuplicates: true }).select('id');
+    r.echeances_fiscales += data?.length ?? 0;
+  }
+}
 
 // ---------------------------------------------------------------- 1. Honoraires récurrents
 async function recurring(sb: SB, cab: Cabinet, today: string, r: any) {

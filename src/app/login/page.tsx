@@ -30,17 +30,17 @@ export default function Login() {
 
   return (
     <main className="min-h-dvh grid lg:grid-cols-2">
-      <section className="hidden lg:flex flex-col justify-between p-12 bg-sage-800 text-white">
-        <Logo light />
+      <section className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-rose-100 via-rose-50 to-lilac-100 text-ink border-r border-paper-line">
+        <Logo />
         <div>
-          <p className="font-display text-4xl leading-tight max-w-md">Tout le cabinet au même endroit. Les relances partent toutes seules.</p>
-          <ul className="mt-8 space-y-2 text-sage-100 text-sm">
-            <li>Chaque appel, mail ou message devient une demande suivie</li>
-            <li>Rendez-vous avec rappel automatique au client la veille</li>
-            <li>Factures d'honoraires et relances email, SMS, WhatsApp</li>
+          <p className="font-display text-4xl leading-tight max-w-md text-ink">Tout le cabinet au même endroit. Les relances partent toutes seules.</p>
+          <ul className="mt-8 space-y-2.5 text-ink-soft text-sm">
+            <li className="flex gap-2"><span className="text-rose-500">✦</span>Chaque appel, mail ou message devient une demande suivie</li>
+            <li className="flex gap-2"><span className="text-rose-500">✦</span>Rendez-vous avec rappel automatique au client la veille</li>
+            <li className="flex gap-2"><span className="text-rose-500">✦</span>Factures d'honoraires et relances email, SMS, WhatsApp</li>
           </ul>
         </div>
-        <p className="text-xs text-sage-200">My Assistanad — by IDEAFORMA</p>
+        <p className="text-xs text-ink-mute">My Assistanad — by IDEAFORMA</p>
       </section>
       <section className="flex items-center justify-center p-6">
         <form onSubmit={submit} className="w-full max-w-sm space-y-4">
@@ -52,7 +52,7 @@ export default function Login() {
           <label className="block"><span className="label">Mot de passe</span>
             <input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
           {err && <p className="text-sm text-clay-700">{err}</p>}
-          {info && <p className="text-sm text-sage-700">{info}</p>}
+          {info && <p className="text-sm text-rose-700">{info}</p>}
           <button className="btn-primary w-full" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>
           <button type="button" onClick={forgot} className="text-xs text-ink-mute underline w-full">Mot de passe oublié</button>
         </form>

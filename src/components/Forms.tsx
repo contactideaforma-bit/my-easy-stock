@@ -6,6 +6,7 @@ import { useCabinet } from './Cabinet';
 import { ClientSelect, Field, MemberSelect } from './Bits';
 import { LABELS, todayISO } from '@/lib/utils';
 import type { Appointment, Client, Request, Task } from '@/lib/types';
+import { generateFiscal } from '@/lib/fiscalClient';
 
 type Saved = () => void;
 
@@ -226,7 +227,7 @@ export function AppointmentForm({ initial, onSaved, defaultClient }: { initial?:
         <Field label={f.kind === 'visio' ? 'Lien visio' : 'Adresse'}><input className="input" value={f.location ?? ''} onChange={(e) => set('location', e.target.value)} /></Field>
       )}
       <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={!!f.remind_client} onChange={(e) => set('remind_client', e.target.checked)} className="accent-sage-600 w-4 h-4" />
+        <input type="checkbox" checked={!!f.remind_client} onChange={(e) => set('remind_client', e.target.checked)} className="accent-rose-600 w-4 h-4" />
         Envoyer un rappel au client la veille (email + SMS)
       </label>
       {f.id && (
@@ -274,6 +275,10 @@ export function ClientForm({ initial, onSaved }: { initial?: Partial<Client>; on
       : await supabase().from('mya_clients').insert(row).select('id').single();
     setBusy(false);
     if (res.error) return setErr(res.error.message);
+    if (!f.id && cabinet.fiscal_calendar && row.status === 'actif') {
+      const { data: full } = await supabase().from('mya_clients').select('*').eq('id', res.data.id).single();
+      if (full) await generateFiscal(full as Client, cabinet.vat_due_day, 120).catch(() => 0);
+    }
     await refreshClients(); bump();
     onSaved(res.data.id);
   }
@@ -318,6 +323,7 @@ export function ClientForm({ initial, onSaved }: { initial?: Partial<Client>; on
 
       <section className="space-y-3">
         <h3 className="h2">Dossier comptable</h3>
+        {cabinet.fiscal_calendar && <p className="text-xs text-ink-mute -mt-1">Ces informations alimentent le calendrier fiscal automatique (TVA, IS, bilan, AG, CFE).</p>}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Régime d'imposition"><input className="input" value={f.tax_regime ?? ''} onChange={(e) => set('tax_regime', e.target.value)} placeholder="IS, IR, micro-BIC…" /></Field>
           <Field label="TVA">

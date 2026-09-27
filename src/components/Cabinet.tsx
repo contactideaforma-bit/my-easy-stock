@@ -57,7 +57,7 @@ export function CabinetProvider({ userId, children, onMissing }: { userId: strin
     );
 
   const memberName = (id: string | null | undefined) => state.members.find((m) => m.user_id === id)?.full_name ?? '—';
-  const memberColor = (id: string | null | undefined) => state.members.find((m) => m.user_id === id)?.color ?? '#7b8496';
+  const memberColor = (id: string | null | undefined) => state.members.find((m) => m.user_id === id)?.color ?? '#9a8391';
 
   return (
     <CabinetCtx.Provider value={{ ...state, clients, refresh, refreshClients, memberName, memberColor, tick, bump: () => setTick((t) => t + 1) }}>

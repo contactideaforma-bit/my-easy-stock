@@ -23,6 +23,11 @@ export interface Cabinet {
   daily_digest: boolean;
   recurring_mode: 'brouillon' | 'auto';
   sms_sender: string | null;
+  payment_link_template: string | null;
+  payment_link_label: string;
+  fiscal_calendar: boolean;
+  vat_due_day: number;
+  engagement_template: string | null;
 }
 
 export interface Member {
@@ -98,6 +103,7 @@ export interface Task {
   assigned_to: string | null;
   recurrence: 'aucune' | 'hebdo' | 'mensuelle' | 'trimestrielle' | 'annuelle';
   done_at: string | null;
+  fiscal_key?: string | null;
   mya_clients?: { name: string } | null;
 }
 
@@ -176,7 +182,7 @@ export interface ReminderLog {
   id: string;
   invoice_id: string | null;
   client_id: string | null;
-  kind: 'envoi_facture' | 'relance' | 'rappel_rdv' | 'recap';
+  kind: 'envoi_facture' | 'relance' | 'rappel_rdv' | 'recap' | 'lettre_mission';
   step: number | null;
   channel: 'email' | 'sms' | 'whatsapp';
   status: 'envoye' | 'echec' | 'prepare';
@@ -188,4 +194,29 @@ export interface ReminderLog {
   created_at: string;
   mya_clients?: { name: string } | null;
   mya_invoices?: { number: string | null } | null;
+}
+
+export interface Engagement {
+  id: string;
+  cabinet_id: string;
+  client_id: string;
+  title: string;
+  content: string;
+  status: 'brouillon' | 'envoyee' | 'signee' | 'annulee';
+  public_token: string;
+  sent_at: string | null;
+  signed_at: string | null;
+  signer_name: string | null;
+  signer_ip: string | null;
+  signature: string | null;
+  content_hash: string | null;
+  created_at: string;
+}
+
+export interface ClientPayer {
+  client_id: string;
+  nb: number;
+  score: number;
+  max_open_late: number;
+  level: 0 | 1 | 2 | 3 | 4;
 }
