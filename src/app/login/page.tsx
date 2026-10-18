@@ -10,8 +10,8 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,44 +19,40 @@ export default function Login() {
     const { error } = await supabase().auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
     if (error) return setErr('Email ou mot de passe incorrect.');
-    router.replace('/app');
+    router.replace('/tableau');
   }
-
   async function forgot() {
     if (!email) return setErr('Indiquez votre email puis cliquez à nouveau.');
-    await supabase().auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/compte` });
+    await supabase().auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reglages` });
     setInfo('Un lien pour choisir un nouveau mot de passe vient de vous être envoyé.');
   }
 
   return (
-    <main className="min-h-dvh grid lg:grid-cols-2">
-      <section className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-rose-100 via-rose-50 to-lilac-100 text-ink border-r border-paper-line">
-        <Logo />
-        <div>
-          <p className="font-display text-4xl leading-tight max-w-md text-ink">Tout le cabinet au même endroit. Les relances partent toutes seules.</p>
-          <ul className="mt-8 space-y-2.5 text-ink-soft text-sm">
-            <li className="flex gap-2"><span className="text-rose-500">✦</span>Chaque appel, mail ou message devient une demande suivie</li>
-            <li className="flex gap-2"><span className="text-rose-500">✦</span>Rendez-vous avec rappel automatique au client la veille</li>
-            <li className="flex gap-2"><span className="text-rose-500">✦</span>Factures d'honoraires et relances email, SMS, WhatsApp</li>
-          </ul>
-        </div>
-        <p className="text-xs text-ink-mute">My Assistanad — by IDEAFORMA</p>
-      </section>
-      <section className="flex items-center justify-center p-6">
-        <form onSubmit={submit} className="w-full max-w-sm space-y-4">
-          <div className="lg:hidden mb-6"><Logo /></div>
-          <h1 className="h1">Bonjour</h1>
-          <p className="text-ink-mute text-sm -mt-2">Connectez-vous à votre espace.</p>
-          <label className="block"><span className="label">Email</span>
-            <input className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-          <label className="block"><span className="label">Mot de passe</span>
-            <input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-          {err && <p className="text-sm text-clay-700">{err}</p>}
-          {info && <p className="text-sm text-rose-700">{info}</p>}
-          <button className="btn-primary w-full" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>
-          <button type="button" onClick={forgot} className="text-xs text-ink-mute underline w-full">Mot de passe oublié</button>
+    <main style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div style={{ width: 'min(980px, 100%)' }} className="grid g2">
+        <section className="pad-lg fade-in" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 40 }}>
+          <Logo size={40} />
+          <div>
+            <h1 className="display" style={{ fontSize: 'clamp(34px, 5vw, 54px)', lineHeight: 1.02, fontWeight: 700 }}>Voir clair dans le référencement.</h1>
+            <p className="muted" style={{ fontSize: 17, maxWidth: 420, marginTop: 16 }}>Audit technique, suivi des mots-clés et conseils rédigés par l’IA — pour vos sites et ceux de vos clients.</p>
+          </div>
+          <div className="row wrap" style={{ gap: 8 }}>
+            <span className="chip">Audit en 40 s</span><span className="chip">Core Web Vitals</span><span className="chip">Assistant IA</span><span className="chip">Rapport client</span>
+          </div>
+        </section>
+        <form onSubmit={submit} className="glass pad-lg stack fade-in" style={{ alignSelf: 'center', animationDelay: '.1s' }}>
+          <div>
+            <h2 className="display" style={{ fontSize: 26 }}>Connexion</h2>
+            <p className="muted" style={{ margin: '4px 0 0' }}>Accédez à votre espace SEO.</p>
+          </div>
+          <label className="field"><span className="label">Email</span><input className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <label className="field"><span className="label">Mot de passe</span><input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          {err && <p className="err">{err}</p>}
+          {info && <p style={{ color: 'var(--accent)' }}>{info}</p>}
+          <button className="btn primary" style={{ width: '100%', height: 48 }} disabled={busy}>{busy ? <span className="spinner" /> : 'Se connecter'}</button>
+          <button type="button" onClick={forgot} className="btn ghost sm" style={{ width: '100%' }}>Mot de passe oublié</button>
         </form>
-      </section>
+      </div>
     </main>
   );
 }

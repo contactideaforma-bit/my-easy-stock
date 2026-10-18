@@ -1,0 +1,26 @@
+// Appel à Claude (Anthropic) — clé ANTHROPIC_API_KEY côté serveur uniquement.
+
+const MODELS = [process.env.ANTHROPIC_MODEL, 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-3-5-sonnet-latest'].filter(Boolean) as string[];
+
+const SYSTEM = `Tu es un consultant SEO senior francophone qui travaille pour IDEA (studio web MyEasyDev, Marseille).
+Tu t'adresses à des petites entreprises locales (artisans, commerces, restaurants, organismes de formation).
+Règles : réponds en français clair, concret et actionnable ; pas de jargon sans explication ; pas de promesses de position garantie ;
+formate en Markdown (titres ##, listes, tableaux si utile) ; reste concis.`;
+
+export async function askClaude(prompt: string, maxTokens = 1800): Promise<string> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) throw new Error('Clé ANTHROPIC_API_KEY absente : ajoutez-la dans les variables d’environnement Vercel.');
+  let lastErr = '';
+  for (const model of MODELS) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
+    });
+    const j: any = await res.json().catch(() => ({}));
+    if (res.ok) return (j.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n').trim();
+    lastErr = j?.error?.message || `Erreur IA ${res.status}`;
+    if (res.status !== 404 && !/model/i.test(lastErr)) break; // on n'essaie un autre modèle que si celui-ci n'existe pas
+  }
+  throw new Error(lastErr);
+}

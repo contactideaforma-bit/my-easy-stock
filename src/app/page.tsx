@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 export default function Home() {
   const router = useRouter();
   useEffect(() => {
-    supabase().auth.getSession().then(({ data }) => router.replace(data.session ? '/app' : '/login'));
+    supabase().auth.getSession().then(({ data }) => router.replace(data.session ? '/tableau' : '/login'));
   }, [router]);
   return null;
 }

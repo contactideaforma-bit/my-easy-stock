@@ -1,11 +1,11 @@
 {
-  "name": "My Assistanad",
-  "short_name": "Assistanad",
-  "description": "Assistante de cabinet : clients, demandes, rendez-vous, tâches et relances de paiement.",
-  "start_url": "/app",
+  "name": "MyEasy SEO",
+  "short_name": "MyEasy SEO",
+  "description": "Audit, suivi de mots-clés et assistant IA pour le référencement.",
+  "start_url": "/tableau",
   "display": "standalone",
-  "background_color": "#fdf8f9",
-  "theme_color": "#fdf8f9",
+  "background_color": "#eef0fb",
+  "theme_color": "#eef0fb",
   "lang": "fr",
   "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

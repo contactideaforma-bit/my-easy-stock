@@ -1,28 +1,28 @@
-import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans, Fraunces } from 'next/font/google';
 import './globals.css';
-
-const sans = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'], variable: '--font-sans' });
-const display = Fraunces({ subsets: ['latin'], weight: ['500', '600'], variable: '--font-display' });
+import type { Metadata, Viewport } from 'next';
+import Liquid from '@/components/Liquid';
 
 export const metadata: Metadata = {
-  title: 'My Assistanad',
-  description: 'Votre assistante de cabinet : clients, demandes, rendez-vous, tâches et relances de paiement automatiques.',
+  title: 'MyEasy SEO',
+  description: 'Audit, suivi de mots-clés et assistant IA pour le référencement des sites IDEA et de ses clients.',
+  robots: { index: false, follow: false },
   manifest: '/manifest.json',
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'My Assistanad' },
+  icons: { icon: '/icon.svg' },
 };
-
-export const viewport: Viewport = {
-  themeColor: '#fdf8f9',
-  width: 'device-width',
-  initialScale: 1,
-};
+export const viewport: Viewport = { themeColor: '#eef0fb', width: 'device-width', initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${sans.variable} ${display.variable}`}>
-      <body className="font-sans">{children}</body>
+    <html lang="fr">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+      </head>
+      <body>
+        <Liquid />
+        {children}
+      </body>
     </html>
   );
 }

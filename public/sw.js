@@ -1,5 +1,5 @@
-// Ancien service worker de My Easy Stock : il se désinstalle et vide ses caches
-// pour que les téléphones qui avaient installé l'ancienne appli voient bien My Assistanad.
+// Ancien service worker (My Easy Stock / My Assistanad) : il se désinstalle et vide ses caches
+// pour que les appareils qui avaient installé une ancienne appli voient bien MyEasy SEO.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
