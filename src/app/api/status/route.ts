@@ -6,5 +6,7 @@ export async function GET() {
     anthropic: !!process.env.ANTHROPIC_API_KEY,
     pagespeed: !!process.env.GOOGLE_PSI_API_KEY,
     serper: !!process.env.SERPER_API_KEY,
+    service: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    cron: !!process.env.CRON_SECRET,
   });
 }

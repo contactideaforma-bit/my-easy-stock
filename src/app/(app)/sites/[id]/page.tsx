@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { TASK_CATEGORIES, type Task } from '@/lib/tasks';
 import { useSite } from './ctx';
 import { CategoryPanel, PerfPanel, SiteChecks } from '@/components/AuditView';
 import Issues from '@/components/Issues';
@@ -23,6 +26,61 @@ function History({ points }: { points: { score: number | null; created_at: strin
   );
 }
 
+function useMomentum(siteId: string, auditId?: string) {
+  const [d, setD] = useState<{ tasks: Task[]; objectif: string | null; kws: { pos: number | null; prev: number | null }[] } | null>(null);
+  useEffect(() => {
+    const db = supabase();
+    Promise.all([
+      db.from('seo_tasks').select('*').eq('site_id', siteId),
+      db.from('seo_strategies').select('content').eq('site_id', siteId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      db.from('seo_keywords').select('seo_keyword_positions(position,checked_at)').eq('site_id', siteId),
+    ]).then(([t, s, k]) => setD({
+      tasks: (t.data as Task[]) || [],
+      objectif: (s.data?.content as any)?.objectif ?? null,
+      kws: ((k.data as any[]) || []).map((x) => { const l = [...(x.seo_keyword_positions || [])].sort((a: any, b: any) => b.checked_at.localeCompare(a.checked_at)); return { pos: l[0]?.position ?? null, prev: l[1]?.position ?? null }; }),
+    }));
+  }, [siteId, auditId]);
+  return d;
+}
+
+function Momentum({ siteId, auditId }: { siteId: string; auditId?: string }) {
+  const d = useMomentum(siteId, auditId);
+  if (!d) return null;
+  const real = d.tasks.filter((t) => !(t.auto_note || '').startsWith('Ignoré'));
+  const done = real.filter((t) => t.status === 'done').length;
+  const month = real.filter((t) => t.status === 'done' && t.done_at && Date.now() - new Date(t.done_at).getTime() < 30 * 86400000).length;
+  const next = real.filter((t) => t.status !== 'done').sort((a, b) => a.priority - b.priority || (a.due_date || '9').localeCompare(b.due_date || '9')).slice(0, 5);
+  const measured = d.kws.filter((k) => k.pos != null || k.prev != null);
+  const top10 = d.kws.filter((k) => k.pos != null && k.pos <= 10).length;
+  const up = d.kws.filter((k) => k.pos != null && k.prev != null && k.pos < k.prev).length;
+  return (
+    <div className="grid g-main">
+      <div className="glass pad">
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <div><div className="kicker">Prochaines actions</div>{d.objectif ? <div className="muted" style={{ fontSize: 13 }}>Objectif : {d.objectif}</div> : <Link className="muted" style={{ fontSize: 13, textDecoration: 'underline' }} href={`/sites/${siteId}/strategie`}>Définir l’objectif et la stratégie →</Link>}</div>
+          <Link className="btn sm" href={`/sites/${siteId}/plan`}>Plan complet</Link>
+        </div>
+        {next.length ? next.map((t) => (
+          <div key={t.id} className="row" style={{ padding: '8px 0', borderTop: '1px solid rgba(255,255,255,.7)', gap: 10 }}>
+            <span className={`chip ${t.priority === 1 ? 'critical' : t.priority === 2 ? 'warning' : 'info'}`}>P{t.priority}</span>
+            <span style={{ flex: 1, fontWeight: 500 }}>{t.title}</span>
+            <span className="muted" style={{ fontSize: 12 }}>{TASK_CATEGORIES[t.category]}</span>
+          </div>
+        )) : <p className="muted">Aucune action en attente.</p>}
+      </div>
+      <div className="glass pad">
+        <div className="kicker">Dynamique</div>
+        <div className="grid g2" style={{ gap: 12, marginTop: 8 }}>
+          <div><div className="stat-num" style={{ fontSize: 28 }}>{done}<span className="muted" style={{ fontSize: 16 }}>/{real.length}</span></div><div className="muted" style={{ fontSize: 13 }}>actions réalisées</div></div>
+          <div><div className="stat-num" style={{ fontSize: 28 }}>{month}</div><div className="muted" style={{ fontSize: 13 }}>ces 30 derniers jours</div></div>
+          <div><div className="stat-num" style={{ fontSize: 28, color: 'var(--good)' }}>{top10}</div><div className="muted" style={{ fontSize: 13 }}>mots-clés en 1re page</div></div>
+          <div><div className="stat-num" style={{ fontSize: 28 }}>{up}<span className="muted" style={{ fontSize: 16 }}>/{measured.length}</span></div><div className="muted" style={{ fontSize: 13 }}>en progression</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Overview() {
   const { site, latest, audits, runAudit, running } = useSite();
   if (!latest) {
@@ -36,6 +94,7 @@ export default function Overview() {
   }
   return (
     <div className="stack">
+      <Momentum siteId={site.id} auditId={latest.id} />
       <div className="grid g-main">
         <CategoryPanel a={latest} />
         <div className="glass pad">

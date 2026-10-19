@@ -78,6 +78,8 @@ export type Site = {
   client_name: string | null;
   notes: string | null;
   color: string | null;
+  auto_weekly?: boolean;
+  last_auto_at?: string | null;
   created_at: string;
 };
 

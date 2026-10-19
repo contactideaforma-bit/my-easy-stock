@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authed, fail } from '@/lib/server';
 import { crawl } from '@/lib/audit';
+import { syncAuditTasks } from '@/lib/tasks';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,7 +18,8 @@ export async function POST(req: Request) {
       site_id: site.id, score: r.score, pages_crawled: r.pages.length, summary: r.summary, site_checks: r.site_checks, pages: r.pages, issues: r.issues, performance: r.performance,
     }).select('id').single();
     if (error) return fail(error.message, 500);
-    return NextResponse.json({ id: data.id, score: r.score });
+    const tasks = await syncAuditTasks(a.db, site.id, r.issues).catch(() => null);
+    return NextResponse.json({ id: data.id, score: r.score, tasks });
   } catch (e: any) {
     return fail('Audit impossible : ' + (e?.message || e), 500);
   }

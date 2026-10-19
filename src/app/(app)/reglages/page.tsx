@@ -9,6 +9,8 @@ const KEYS = [
   { k: 'anthropic', name: 'Claude (Anthropic)', env: 'ANTHROPIC_API_KEY', what: 'Assistant IA : synthèses, balises, mots-clés, briefs.', required: true },
   { k: 'pagespeed', name: 'Google PageSpeed', env: 'GOOGLE_PSI_API_KEY', what: 'Vitesse mobile. Fonctionne sans clé, mais avec un quota partagé limité.' },
   { k: 'serper', name: 'Serper (positions Google)', env: 'SERPER_API_KEY', what: 'Suivi automatique des positions. Sans clé : saisie manuelle.' },
+  { k: 'service', name: 'Supabase (clé service)', env: 'SUPABASE_SERVICE_ROLE_KEY', what: 'Indispensable au suivi automatique hebdomadaire (Supabase → Project Settings → API Keys → secret / service_role).' },
+  { k: 'cron', name: 'Secret de la tâche planifiée', env: 'CRON_SECRET', what: 'Protège le suivi automatique : une longue phrase au hasard, de votre choix.' },
 ];
 
 export default function Reglages() {

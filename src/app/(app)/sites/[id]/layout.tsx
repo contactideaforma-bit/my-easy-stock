@@ -56,7 +56,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
   if (!site) return <div className="stack"><div className="shimmer" style={{ height: 60 }} /><div className="shimmer" style={{ height: 240 }} /></div>;
 
   const base = `/sites/${id}`;
-  const tabs = [[base, 'Vue d’ensemble'], [`${base}/audit`, 'Audit détaillé'], [`${base}/mots-cles`, 'Mots-clés'], [`${base}/assistant`, 'Assistant IA'], [`${base}/rapport`, 'Rapport client']];
+  const tabs = [[base, 'Vue d’ensemble'], [`${base}/strategie`, 'Stratégie'], [`${base}/plan`, 'Plan d’action'], [`${base}/audit`, 'Audit détaillé'], [`${base}/mots-cles`, 'Mots-clés'], [`${base}/assistant`, 'Assistant IA'], [`${base}/rapport`, 'Rapport client']];
   return (
     <SiteCtx.Provider value={{ site, audits, latest, refresh, runAudit, running, runError }}>
       <div className="fade-in">

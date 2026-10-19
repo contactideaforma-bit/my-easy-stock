@@ -24,3 +24,13 @@ export async function askClaude(prompt: string, maxTokens = 1800): Promise<strin
   }
   throw new Error(lastErr);
 }
+
+/** Demande une réponse JSON (objet) et la parse de façon tolérante. */
+export async function askClaudeJSON<T = any>(prompt: string, maxTokens = 3000): Promise<T> {
+  const text = await askClaude(prompt + '\n\nRéponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans bloc de code.', maxTokens);
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < start) throw new Error('Réponse IA illisible, relancez.');
+  try { return JSON.parse(text.slice(start, end + 1)); }
+  catch { throw new Error('Réponse IA incomplète (trop longue ?), relancez.'); }
+}
