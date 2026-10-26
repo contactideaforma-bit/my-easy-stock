@@ -2,8 +2,11 @@
 
 const MODELS = [process.env.ANTHROPIC_MODEL, 'claude-sonnet-4-5', 'claude-sonnet-4-0', 'claude-3-5-sonnet-latest'].filter(Boolean) as string[];
 
-const SYSTEM = `Tu es un consultant SEO senior francophone qui travaille pour IDEA (studio web MyEasyDev, Marseille).
+const todayFr = () => new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+
+const system = () => `Tu es un consultant SEO senior francophone qui travaille pour IDEA (studio web MyEasyDev, Marseille).
 Tu t'adresses à des petites entreprises locales (artisans, commerces, restaurants, organismes de formation).
+Date du jour : ${todayFr()}. Toute date, échéance ou délai que tu écris doit être calculé à partir de cette date (jamais d'année antérieure).
 Règles : réponds en français clair, concret et actionnable ; pas de jargon sans explication ; pas de promesses de position garantie ;
 formate en Markdown (titres ##, listes, tableaux si utile) ; reste concis.`;
 
@@ -15,7 +18,7 @@ export async function askClaude(prompt: string, maxTokens = 1800): Promise<strin
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model, max_tokens: maxTokens, system: system(), messages: [{ role: 'user', content: prompt }] }),
     });
     const j: any = await res.json().catch(() => ({}));
     if (res.ok) return (j.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n').trim();

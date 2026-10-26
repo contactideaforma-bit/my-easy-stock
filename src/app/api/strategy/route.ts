@@ -37,7 +37,7 @@ Clients visés : ${inp.audience || '(à déduire)'}
 Zone : ${inp.zone || 'France'}
 Offre / différenciation : ${inp.offer || '(à déduire)'}
 Concurrents connus : ${inp.competitors || '(aucun indiqué)'}
-Horizon : ${inp.horizon || '6'} mois
+Horizon : ${inp.horizon || '6'} mois (à compter d'aujourd'hui, ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' })})
 ${audit ? `Dernier audit : score ${audit.score}/100.\nPages existantes :\n${pages}\nProblèmes principaux :\n${issues}` : 'Aucun audit disponible.'}
 ${kwText ? `Mots-clés déjà suivis (position Google) :\n${kwText}` : ''}
 
