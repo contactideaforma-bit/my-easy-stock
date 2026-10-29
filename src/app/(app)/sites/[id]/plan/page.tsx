@@ -1,5 +1,7 @@
 'use client';
 
+import { createPortal } from 'react-dom';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -23,7 +25,7 @@ export default function PlanPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [strategy, setStrategy] = useState<Strategy | null>(null);
   const [cat, setCat] = useState('');
-  const [prompt, setPrompt] = useState<{ title: string; text: string } | null>(null);
+  const [prompt, setPrompt] = useState<{ task: Task; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [adding, setAdding] = useState(false);
   const [nt, setNt] = useState({ title: '', category: 'contenu', priority: 2, due_date: '', target_url: '', keyword: '', detail: '' });
@@ -84,7 +86,7 @@ export default function PlanPage() {
           <Link className="btn primary" href={`/sites/${site.id}/strategie`}><Icon name="spark" />Construire la stratégie</Link>
           <button className="btn" onClick={() => setAdding(true)}><Icon name="plus" />Tâche manuelle</button>
         </div>
-        {adding && <AddForm nt={nt} setNt={setNt} add={add} close={() => setAdding(false)} />}
+        {adding && createPortal(<AddForm nt={nt} setNt={setNt} add={add} close={() => setAdding(false)} />, document.body)}
       </div>
     );
   }
@@ -128,7 +130,7 @@ export default function PlanPage() {
                   {t.auto_note && <div style={{ fontSize: 12, marginTop: 6, color: t.status === 'done' ? 'var(--good)' : 'var(--mid)' }}>{t.auto_note}</div>}
                   {t.detail && <details style={{ marginTop: 6 }}><summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>Détails</summary><p style={{ whiteSpace: 'pre-wrap', fontSize: 13, margin: '6px 0 0', textAlign: 'justify' }}>{t.detail}</p></details>}
                   <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
-                    {t.status !== 'done' && <button className="btn sm" onClick={() => { setPrompt({ title: t.title, text: buildTaskPrompt(site, t, strategy) }); setCopied(false); }}><Icon name="spark" size={14} />Prompt Claude</button>}
+                    {t.status !== 'done' && <button className="btn sm" onClick={() => { setPrompt({ task: t, text: buildTaskPrompt(site, t, strategy) }); setCopied(false); }}><Icon name="spark" size={14} />Prompt Claude</button>}
                     {t.status === 'todo' && <button className="btn sm" onClick={() => move(t, 'doing')}>Commencer</button>}
                     {t.status !== 'done' && <button className="btn sm primary" onClick={() => move(t, 'done')}>Fait ✓</button>}
                     {t.status === 'done' && <button className="btn sm" onClick={() => move(t, 'todo')}>Rouvrir</button>}
@@ -143,17 +145,24 @@ export default function PlanPage() {
         ))}
       </div>
 
-      {adding && <AddForm nt={nt} setNt={setNt} add={add} close={() => setAdding(false)} />}
+      {adding && createPortal(<AddForm nt={nt} setNt={setNt} add={add} close={() => setAdding(false)} />, document.body)}
       {prompt && (
-        <div className="overlay" onClick={() => setPrompt(null)}>
-          <div className="glass pad-lg" style={{ width: 'min(820px, 100%)' }} onClick={(e) => e.stopPropagation()}>
-            <div className="row between wrap" style={{ marginBottom: 10 }}>
-              <div><div className="kicker">Prompt pour Claude</div><strong>{prompt.title}</strong></div>
-              <div className="row"><button className="btn primary" onClick={async () => { await navigator.clipboard.writeText(prompt.text); setCopied(true); }}>{copied ? 'Copié ✓' : 'Copier'}</button><button className="btn ghost" onClick={() => setPrompt(null)}>Fermer</button></div>
+        createPortal(
+          <div className="overlay" onClick={() => setPrompt(null)}>
+            <div className="glass pad-lg" style={{ width: 'min(820px, 100%)', maxHeight: 'calc(100vh - 32px)', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+              <div className="row between wrap" style={{ marginBottom: 10, gap: 10 }}>
+                <div><div className="kicker">Prompt pour Claude</div><strong>{prompt.task.title}</strong></div>
+                <div className="row wrap" style={{ gap: 8 }}>
+                  <button className="btn primary" onClick={async () => { await navigator.clipboard.writeText(prompt.text); setCopied(true); }}>{copied ? 'Copié ✓' : 'Copier'}</button>
+                  <button className="btn" onClick={() => { move(prompt.task, 'done'); setPrompt(null); }} title="Marquer la tâche comme effectuée">Fait ✓</button>
+                  <button className="btn ghost" onClick={() => setPrompt(null)}>Fermer</button>
+                </div>
+              </div>
+              <textarea className="textarea mono" readOnly value={prompt.text} style={{ flex: 1, minHeight: 240, fontSize: 12.5 }} />
             </div>
-            <textarea className="textarea mono" readOnly value={prompt.text} style={{ minHeight: 380, fontSize: 12.5 }} />
-          </div>
-        </div>
+          </div>,
+          document.body,
+        )
       )}
     </div>
   );
