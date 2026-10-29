@@ -78,11 +78,30 @@ priorite/impact/effort de 1 à 3 (priorite 1 = urgent ; impact 3 = fort ; effort
         due_date: new Date(Date.now() + Math.min(12, Math.max(1, Number(t.semaine) || 1)) * 7 * 86400000).toISOString().slice(0, 10),
         target_url: t.url && t.url !== 'null' ? t.url : null, keyword: t.mot_cle && t.mot_cle !== 'null' ? t.mot_cle : null,
       })).filter((r) => r.title);
-      // Les tâches « à faire » d'une ancienne stratégie sont remplacées
-      await a.db.from('seo_tasks').delete().eq('site_id', site.id).eq('source', 'strategy').eq('status', 'todo').neq('strategy_id', strat.id);
+      // Les tâches « à faire » issues d'une stratégie (ancienne ou recalculée) sont remplacées ; celles en cours ou terminées sont conservées
+      await a.db.from('seo_tasks').delete().eq('site_id', site.id).eq('source', 'strategy').eq('status', 'todo');
       const { error } = await a.db.from('seo_tasks').insert(rows);
       if (error) return fail(error.message, 500);
       return NextResponse.json({ created: rows.length });
+    }
+
+    if (step === 'refresh') {
+      // Réécrit uniquement les éléments datés (objectif, KPI) d'une stratégie générée sans date du jour
+      const { data: strat } = await a.db.from('seo_strategies').select('*').eq('id', strategyId).single();
+      if (!strat) return fail('Stratégie introuvable', 404);
+      const s = strat.content as Strategy;
+      const horizon = Number((strat.inputs as StrategyInputs)?.horizon) || 6;
+      const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+      const prompt = `Nous sommes le ${today}. La stratégie SEO ci-dessous a été rédigée avec des dates erronées (année passée). L'horizon est de ${horizon} mois à compter d'aujourd'hui.
+Objectif actuel : ${s.objectif}
+KPI actuels : ${JSON.stringify(s.kpis)}
+Réécris ces éléments avec des dates et délais cohérents (entre aujourd'hui et ${horizon} mois), sans changer les chiffres ni le sens. Textes courts.
+Format JSON : {"objectif":"objectif chiffré et daté","kpis":[{"nom":"","cible":"","delai":""}]}`;
+      const out = await askClaudeJSON<{ objectif: string; kpis: Strategy['kpis'] }>(prompt, 800);
+      const content: Strategy = { ...s, objectif: out.objectif || s.objectif, kpis: Array.isArray(out.kpis) && out.kpis.length ? out.kpis : s.kpis };
+      const { data, error } = await a.db.from('seo_strategies').update({ content }).eq('id', strat.id).select('*').single();
+      if (error) return fail(error.message, 500);
+      return NextResponse.json(data);
     }
 
     if (step === 'track') {

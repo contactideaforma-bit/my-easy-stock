@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, supabase } from '@/lib/supabase';
-import { GOALS, PAGE_STATUS, type Strategy, type StrategyInputs } from '@/lib/strategy';
+import { GOALS, PAGE_STATUS, hasStaleDates, monthLabel, type Strategy, type StrategyInputs } from '@/lib/strategy';
 import Icon from '@/components/Icon';
 import { useSite } from '../ctx';
 
@@ -58,12 +58,26 @@ export default function StrategiePage() {
     try { const p = await api<{ created: number }>('/api/strategy', { siteId: site.id, step: 'plan', strategyId: cur.id }); setMsg(`${p.created} tâches ajoutées au plan d’action.`); }
     catch (e: any) { setErr(e.message); } finally { setStep(null); }
   }
+  async function refresh() {
+    if (!cur) return;
+    setErr(null); setMsg(null);
+    try {
+      setStep('1/2 — Mise à jour des dates de l’objectif et des indicateurs…');
+      const r = await api<Row>('/api/strategy', { siteId: site.id, step: 'refresh', strategyId: cur.id });
+      setCur(r);
+      setStep('2/2 — Recalcul du plan d’action sur 12 semaines… (30 à 50 s)');
+      const p = await api<{ created: number }>('/api/strategy', { siteId: site.id, step: 'plan', strategyId: r.id });
+      setMsg(`Stratégie actualisée : ${p.created} tâches replanifiées à partir d’aujourd’hui.`);
+      await load();
+    } catch (e: any) { setErr(e.message); } finally { setStep(null); }
+  }
   const set = (k: keyof StrategyInputs) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
 
   if (!loaded) return <div className="shimmer" style={{ height: 240 }} />;
 
   const showForm = !cur || editing;
   const s = cur?.content;
+  const stale = hasStaleDates(s);
   return (
     <div className="stack">
       {showForm && (
@@ -96,6 +110,12 @@ export default function StrategiePage() {
 
       {s && !editing && (
         <>
+          {stale && !step && (
+            <div className="glass sm pad row between wrap" style={{ border: '1px solid var(--bad)', gap: 12 }}>
+              <span><strong>Dates à actualiser.</strong> Cette stratégie a été générée sans la date du jour : son objectif ou ses indicateurs mentionnent une année déjà passée. L’actualisation corrige les dates et replanifie les tâches à partir d’aujourd’hui (les tâches en cours ou terminées sont conservées).</span>
+              <button className="btn sm primary" onClick={refresh}><Icon name="spark" />Actualiser</button>
+            </div>
+          )}
           <div className="glass pad-lg fade-in">
             <div className="row between wrap" style={{ alignItems: 'flex-start' }}>
               <div style={{ flex: 1, minWidth: 260 }}>
@@ -106,6 +126,7 @@ export default function StrategiePage() {
               <div className="row wrap">
                 <button className="btn sm" onClick={() => setEditing(true)}>Modifier l’objectif</button>
                 <button className="btn sm" onClick={replan} disabled={!!step}>Recalculer le plan</button>
+                {!stale && <button className="btn sm" onClick={refresh} disabled={!!step} title="Réécrit les dates de l’objectif et des indicateurs à partir d’aujourd’hui, puis recalcule le plan">Actualiser les dates</button>}
                 <button className="btn sm primary" onClick={track}>Suivre ces mots-clés</button>
               </div>
             </div>
@@ -139,7 +160,7 @@ export default function StrategiePage() {
             <div className="glass pad"><h3 className="display" style={{ fontSize: 18, marginBottom: 8 }}>Gains rapides</h3><ul style={{ margin: 0, paddingLeft: 18 }}>{s.quick_wins?.map((q, i) => <li key={i} style={{ marginBottom: 6 }}>{q}</li>)}</ul></div>
             <div className="glass pad">
               <h3 className="display" style={{ fontSize: 18, marginBottom: 8 }}>Calendrier éditorial</h3>
-              <table className="table"><tbody>{[...(s.contenus || [])].sort((a, b) => a.mois - b.mois).map((c, i) => <tr key={i}><td className="muted" style={{ whiteSpace: 'nowrap' }}>Mois {c.mois}</td><td><strong>{c.titre}</strong><div className="muted" style={{ fontSize: 12 }}>{c.type} · {c.mot_cle}</div></td></tr>)}</tbody></table>
+              <table className="table"><tbody>{[...(s.contenus || [])].sort((a, b) => a.mois - b.mois).map((c, i) => <tr key={i}><td className="muted" style={{ whiteSpace: 'nowrap' }}>Mois {c.mois}<div style={{ fontSize: 11 }}>{cur ? monthLabel(cur.created_at, c.mois) : ''}</div></td><td><strong>{c.titre}</strong><div className="muted" style={{ fontSize: 12 }}>{c.type} · {c.mot_cle}</div></td></tr>)}</tbody></table>
             </div>
           </div>
           <div className="grid g3">

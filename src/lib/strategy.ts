@@ -36,3 +36,18 @@ export const GOALS = [
 ];
 
 export const PAGE_STATUS: Record<string, string> = { existante: 'Existante', a_optimiser: 'À optimiser', a_creer: 'À créer' };
+
+/** Vrai si la stratégie contient des dates déjà passées (ex. « d'ici fin 2025 » générées sans date du jour). */
+export function hasStaleDates(s: Strategy | null | undefined): boolean {
+  if (!s) return false;
+  const year = new Date().getFullYear();
+  const texts = [s.objectif, ...(s.kpis || []).flatMap((k) => [k.cible, k.delai])].filter(Boolean) as string[];
+  return texts.some((t) => (t.match(/\b(20\d{2})\b/g) || []).some((y) => Number(y) < year));
+}
+
+/** Libellé du mois réel d'un « Mois N » du calendrier éditorial, à partir de la date de création de la stratégie. */
+export function monthLabel(createdAt: string, mois: number): string {
+  const d = new Date(createdAt);
+  d.setDate(1); d.setMonth(d.getMonth() + Math.max(0, (Number(mois) || 1) - 1));
+  return d.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+}

@@ -1,5 +1,7 @@
 'use client';
 
+import { hasStaleDates, type Strategy } from '@/lib/strategy';
+
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -27,7 +29,7 @@ function History({ points }: { points: { score: number | null; created_at: strin
 }
 
 function useMomentum(siteId: string, auditId?: string) {
-  const [d, setD] = useState<{ tasks: Task[]; objectif: string | null; kws: { pos: number | null; prev: number | null }[] } | null>(null);
+  const [d, setD] = useState<{ tasks: Task[]; objectif: string | null; strategy: Strategy | null; kws: { pos: number | null; prev: number | null }[] } | null>(null);
   useEffect(() => {
     const db = supabase();
     Promise.all([
@@ -37,6 +39,7 @@ function useMomentum(siteId: string, auditId?: string) {
     ]).then(([t, s, k]) => setD({
       tasks: (t.data as Task[]) || [],
       objectif: (s.data?.content as any)?.objectif ?? null,
+      strategy: (s.data?.content as Strategy) ?? null,
       kws: ((k.data as any[]) || []).map((x) => { const l = [...(x.seo_keyword_positions || [])].sort((a: any, b: any) => b.checked_at.localeCompare(a.checked_at)); return { pos: l[0]?.position ?? null, prev: l[1]?.position ?? null }; }),
     }));
   }, [siteId, auditId]);
@@ -57,7 +60,7 @@ function Momentum({ siteId, auditId }: { siteId: string; auditId?: string }) {
     <div className="grid g-main">
       <div className="glass pad">
         <div className="row between" style={{ marginBottom: 10 }}>
-          <div><div className="kicker">Prochaines actions</div>{d.objectif ? <div className="muted" style={{ fontSize: 13 }}>Objectif : {d.objectif}</div> : <Link className="muted" style={{ fontSize: 13, textDecoration: 'underline' }} href={`/sites/${siteId}/strategie`}>Définir l’objectif et la stratégie →</Link>}</div>
+          <div><div className="kicker">Prochaines actions</div>{d.objectif ? <div className="muted" style={{ fontSize: 13 }}>Objectif : {d.objectif}{hasStaleDates(d.strategy) && <> · <Link href={`/sites/${siteId}/strategie`} style={{ color: 'var(--bad)', fontWeight: 600 }}>dates à actualiser</Link></>}</div> : <Link className="muted" style={{ fontSize: 13, textDecoration: 'underline' }} href={`/sites/${siteId}/strategie`}>Définir l’objectif et la stratégie →</Link>}</div>
           <Link className="btn sm" href={`/sites/${siteId}/plan`}>Plan complet</Link>
         </div>
         {next.length ? next.map((t) => (
